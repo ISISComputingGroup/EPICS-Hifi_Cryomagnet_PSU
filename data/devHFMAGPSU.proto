@@ -1,0 +1,113 @@
+OutTerminator = ETX;
+InTerminator = CR LF;
+ReplyTimeout = 200;
+
+getUpdate {
+	out "U";
+	ExtraInput = Ignore;
+	# in "........ FIELD CONSTANT: %(\$1UPDATE)f T";   	
+	# in "........ FIELD CONSTANT: %*f T";   	
+	in "........ HEATER OUTPUT: %(\$1HEATERVALUE)f VOLTS";
+	#in "........ VOLTAGE LIMIT: %(\$1LIMIT)f VOLTS";
+	#in "........ RAMP RATE: %(\$1RAMPRATE)f A/SEC";
+}
+
+getDirection {
+	out "GETSIGN";
+	in "";
+}
+	
+getOutputMode {
+	out "GETO";
+	in  "%c";
+}
+
+getRampTarget {
+	out "RS";
+	in "";
+}
+
+getRampRate {
+	out "R";
+	in "";
+}
+	
+getHeaterStatus {
+	out "H";
+	in "%d";
+}
+
+getHeaterValue {
+	out "GETVL";
+	in "%f";
+}
+
+getLimit {
+	out "HV";
+	in "%f";
+}
+
+setMaxTarget {
+	out "SETMAX %f";
+}
+
+getMaxTarget {
+	out "GETMAX";
+	in "";
+}
+
+setMidTarget {
+	out "SETMID %f";
+}
+
+getMidTarget {
+	out "GETMID";
+	in "";
+}
+	
+pauseStatus {
+	out "P";
+	in "%d";
+}	
+
+
+# ramp rate, amps per second
+setRampRate {
+	out "SETRAMP %f";
+}
+	
+setDirection {
+	out "D %{0|-|+}";
+}	
+	
+# ramp targets: zero, mid, max	
+setRampTarget {
+	out "RAMP %{0|%|!}";
+}
+
+pause {
+	out "P %{OFF|ON}";
+}
+	
+# is heater on or off?	
+setHeaterStatus {
+	out "H %{OFF|ON}";
+}
+
+# value, in volts
+setHeaterValue {
+	out "SH %f";
+}
+
+# tesla or amp units switch
+setOutputMode {
+	out "T %{OFF|ON}";
+}
+
+# set voltage limit
+setLimit {
+	out "SL %f";
+}
+
+
+
