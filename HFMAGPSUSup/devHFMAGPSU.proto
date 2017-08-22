@@ -4,109 +4,119 @@ ReplyTimeout = 200;
 
 getUpdate {
 	out "U";
+	in "";
 	ExtraInput = Ignore;
 	# in "........ FIELD CONSTANT: %(\$1UPDATE)f T";   	
 	# in "........ FIELD CONSTANT: %*f T";   	
-	in "........ HEATER OUTPUT: %(\$1HEATERVALUE)f VOLTS";
+	#in "........ HEATER OUTPUT: %(\$1HEATERVALUE)f VOLTS";
 	#in "........ VOLTAGE LIMIT: %(\$1LIMIT)f VOLTS";
 	#in "........ RAMP RATE: %(\$1RAMPRATE)f A/SEC";
 }
 
 getDirection {
-	out "GETSIGN";
-	in "";
+	out "GET SIGN";
+	in "%s";
 }
 	
 getOutputMode {
-	out "GETO";
-	in  "%c";
+	out "GET O";
+	in  "%d";
 }
 
 getRampTarget {
-	out "RS";
-	in "";
-}
-
-getRampRate {
-	out "R";
-	in "";
-}
-	
-getHeaterStatus {
-	out "H";
+	out "R S";
 	in "%d";
 }
 
+getRampRate {
+	out "RAMP";
+	in "%f";
+}
+	
+getHeaterStatus {
+	out "HEATER";
+	in "%s";
+}
+
 getHeaterValue {
-	out "GETVL";
+	out "GET H";
 	in "%f";
 }
 
 getLimit {
-	out "HV";
+	out "H V";
 	in "%f";
 }
 
 setMaxTarget {
-	out "SETMAX %f";
+	out "SET MAX %f";
+	in "%(\$1)s";
 }
 
 getMaxTarget {
-	out "GETMAX";
-	in "";
+	out "GET MAX";
+	in "%f";
 }
 
 setMidTarget {
-	out "SETMID %f";
+	out "SET MID %f";
+	in "%(\$1)s";
 }
 
 getMidTarget {
-	out "GETMID";
-	in "";
+	out "GET MID";
+	in "%f";
 }
 	
-pauseStatus {
+getPause {
 	out "P";
-	in "%d";
+	in "%s";
 }	
-
 
 # ramp rate, amps per second
 setRampRate {
-	out "SETRAMP %f";
+	out "SET RAMP %f";
+	in "%(\$1)s";
 }
 	
 setDirection {
-	out "D %{0|-|+}";
+	out "D %{-|0|+}"; # 0|-|+
+	in "%(\$1)s";
 }	
 	
 # ramp targets: zero, mid, max	
 setRampTarget {
-	out "RAMP %{0|%|!}";
+	out "RAMP %{ZERO|MID|MAX}"; 
+	in "%(\$1)s";
 }
 
-pause {
+setPause {
 	out "P %{OFF|ON}";
+	in "%(\$1)s";
 }
 	
-# is heater on or off?	
+# set heater on or off
 setHeaterStatus {
 	out "H %{OFF|ON}";
+	in "%(\$1)s";
 }
 
 # value, in volts
 setHeaterValue {
-	out "SH %f";
+	out "S H %f";
+	in "%(\$1)s";
 }
 
 # tesla or amp units switch
 setOutputMode {
-	out "T %{OFF|ON}";
+	out "T %{AMPS|TESLA}";
+	in "%(\$1)s";
 }
 
 # set voltage limit
 setLimit {
-	out "SL %f";
+	out "S L %f";
+	in "%(\$1)s";
 }
 
 
