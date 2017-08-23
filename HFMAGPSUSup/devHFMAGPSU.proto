@@ -1,17 +1,6 @@
-OutTerminator = ETX;
+OutTerminator = CR LF;
 InTerminator = CR LF;
 ReplyTimeout = 200;
-
-getUpdate {
-	out "U";
-	in "";
-	ExtraInput = Ignore;
-	# in "........ FIELD CONSTANT: %(\$1UPDATE)f T";   	
-	# in "........ FIELD CONSTANT: %*f T";   	
-	#in "........ HEATER OUTPUT: %(\$1HEATERVALUE)f VOLTS";
-	#in "........ VOLTAGE LIMIT: %(\$1LIMIT)f VOLTS";
-	#in "........ RAMP RATE: %(\$1RAMPRATE)f A/SEC";
-}
 
 getDirection {
 	out "GET SIGN";
@@ -20,12 +9,12 @@ getDirection {
 	
 getOutputMode {
 	out "GET O";
-	in  "%d";
+	in  "%s";
 }
 
 getRampTarget {
 	out "R S";
-	in "%d";
+	in "%s";
 }
 
 getRampRate {
@@ -50,7 +39,7 @@ getLimit {
 
 setMaxTarget {
 	out "SET MAX %f";
-	in "%(\$1)s";
+	in "%(\$1)39c";
 }
 
 getMaxTarget {
@@ -60,7 +49,7 @@ getMaxTarget {
 
 setMidTarget {
 	out "SET MID %f";
-	in "%(\$1)s";
+	in "%(\$1)39c";
 }
 
 getMidTarget {
@@ -76,47 +65,47 @@ getPause {
 # ramp rate, amps per second
 setRampRate {
 	out "SET RAMP %f";
-	in "%(\$1)s";
+	in "%(\$1)39c";
 }
 	
 setDirection {
-	out "D %{-|0|+}"; # 0|-|+
-	in "%(\$1)s";
+	out "D %{-|0|+}";
+	in "%(\$1)39c";
 }	
 	
 # ramp targets: zero, mid, max	
 setRampTarget {
 	out "RAMP %{ZERO|MID|MAX}"; 
-	in "%(\$1)s";
+	in "%(\$1)39c";
 }
 
 setPause {
 	out "P %{OFF|ON}";
-	in "%(\$1)s";
+	in "%(\$1)39c";
 }
 	
 # set heater on or off
 setHeaterStatus {
 	out "H %{OFF|ON}";
-	in "%(\$1)s";
+	in "%(\$1)39c";
 }
 
 # value, in volts
 setHeaterValue {
 	out "S H %f";
-	in "%(\$1)s";
+	in "%(\$1)39c";
 }
 
 # tesla or amp units switch
 setOutputMode {
 	out "T %{AMPS|TESLA}";
-	in "%(\$1)s";
+	in "%(\$1)39c";
 }
 
 # set voltage limit
 setLimit {
 	out "S L %f";
-	in "%(\$1)s";
+	in "%(\$1)39c";
 }
 
 

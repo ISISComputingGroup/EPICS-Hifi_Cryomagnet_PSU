@@ -1,0 +1,22 @@
+<?xml version="1.0" ?>
+<testsuite errors="1" failures="0" name="tests.hfmagpsu.HfmagpsuTests-20170822104200" tests="1" time="14.372">
+	<testcase classname="tests.hfmagpsu.HfmagpsuTests" name="test_GIVEN_direction_set_WHEN_read_THEN_direction_is_as_expected" time="14.372">
+		<error message="Unable to find PV TE:NDW1801:HFMAGPSU_01:DIRECTION:SP" type="UnableToConnectToPVException">
+<![CDATA[Traceback (most recent call last):
+  File "C:\Instrument\Apps\EPICS\support\IocTestFramework\master\tests\hfmagpsu.py", line 95, in test_GIVEN_direction_set_WHEN_read_THEN_direction_is_as_expected
+    self._write_direction('+')
+  File "C:\Instrument\Apps\EPICS\support\IocTestFramework\master\tests\hfmagpsu.py", line 17, in _write_direction
+    self.ca.set_pv_value("HFMAGPSU_01:DIRECTION:SP", direction)
+  File "C:\Instrument\Apps\EPICS\support\IocTestFramework\master\utils\channel_access.py", line 40, in set_pv_value
+    self.ca.set_pv_value(self._create_pv_with_prefix(pv), value, wait=True, timeout=None)
+  File "C:\Instrument\Apps\Python\lib\site-packages\genie_python\genie_cachannel_wrapper.py", line 35, in set_pv_value
+    raise e
+UnableToConnectToPVException: Unable to find PV TE:NDW1801:HFMAGPSU_01:DIRECTION:SP
+]]>		</error>
+	</testcase>
+	<system-out>
+<![CDATA[Unable to find PV TE:NDW1801:HFMAGPSU_01:DIRECTION
+]]>	</system-out>
+	<system-err>
+<![CDATA[]]>	</system-err>
+</testsuite>

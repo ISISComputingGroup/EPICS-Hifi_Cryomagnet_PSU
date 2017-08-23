@@ -1,0 +1,35 @@
+<?xml version="1.0" ?>
+<testsuite errors="2" failures="0" name="tests.hfmagpsu.HfmagpsuTests-20170822102317" tests="2" time="33.160">
+	<testcase classname="tests.hfmagpsu.HfmagpsuTests" name="test_GIVEN_direction_set_WHEN_read_THEN_direction_is_as_expected" time="20.701">
+		<error message="Values didn't match when reading PV 'HFMAGPSU_01:DIRECTION'.
+                   Expected value: 2
+                   Actual value: 0" type="AssertionError">
+<![CDATA[Traceback (most recent call last):
+  File "C:\Instrument\Apps\EPICS\support\IocTestFramework\master\tests\hfmagpsu.py", line 96, in test_GIVEN_direction_set_WHEN_read_THEN_direction_is_as_expected
+    self.ca.assert_that_pv_is("HFMAGPSU_01:DIRECTION", expected_direction)
+  File "C:\Instrument\Apps\EPICS\support\IocTestFramework\master\utils\channel_access.py", line 68, in assert_that_pv_is
+    raise AssertionError(error_message)
+AssertionError: Values didn't match when reading PV 'HFMAGPSU_01:DIRECTION'.
+                   Expected value: 2
+                   Actual value: 0
+]]>		</error>
+	</testcase>
+	<testcase classname="tests.hfmagpsu.HfmagpsuTests" name="test_GIVEN_rampTarget_set_WHEN_read_THEN_rampTarget_is_as_expected" time="12.459">
+		<error message="Values didn't match when reading PV 'HFMAGPSU_01:RAMPTARGET'.
+                   Expected value: MID
+                   Actual value: 3.0" type="AssertionError">
+<![CDATA[Traceback (most recent call last):
+  File "C:\Instrument\Apps\EPICS\support\IocTestFramework\master\tests\hfmagpsu.py", line 102, in test_GIVEN_rampTarget_set_WHEN_read_THEN_rampTarget_is_as_expected
+    self.ca.assert_that_pv_is("HFMAGPSU_01:RAMPTARGET", expected_rampTarget)
+  File "C:\Instrument\Apps\EPICS\support\IocTestFramework\master\utils\channel_access.py", line 68, in assert_that_pv_is
+    raise AssertionError(error_message)
+AssertionError: Values didn't match when reading PV 'HFMAGPSU_01:RAMPTARGET'.
+                   Expected value: MID
+                   Actual value: 3.0
+]]>		</error>
+	</testcase>
+	<system-out>
+<![CDATA[]]>	</system-out>
+	<system-err>
+<![CDATA[]]>	</system-err>
+</testsuite>
