@@ -42,6 +42,11 @@ getLimit {
 	in "%*23c %f %*5c";
 }
 
+getConstant {
+	out "GET TPA";
+	in "%*24c %f %*3c";
+}
+
 setMaxTarget {
 	out "SET MAX %f";
 	in "%(\$1)75c";
@@ -111,5 +116,11 @@ setOutputMode {
 # set voltage limit
 setLimit {
 	out "S L %f";
+	in "%(\$1)75c";
+}
+
+# set field constant
+setConstant {
+	out "SET TPA %f";
 	in "%(\$1)75c";
 }
