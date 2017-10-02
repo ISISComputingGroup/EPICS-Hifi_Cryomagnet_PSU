@@ -1,9 +1,9 @@
 program fsm("P")
 
 #include "seqPVmacros.h"
-
-%{#include <stdio.h>}%
 %{#include <stdlib.h>}%
+%{#include <stdio.h>}%
+
 
 /* Turn on run-time debug messages */
 option +d;
@@ -59,17 +59,19 @@ double final_target;
 
 double ramp_rates[64];
 double ramp_targets[64];
-FILE * ramp_file;
+
+
+float abs_target;
 
 /* Reading ramp table values from external txt file */
-
 %{
-
-
+static int read_ramp_rates() {	
+	FILE *ramp_file;
 	ramp_file = fopen("C:\\Instrument\\Settings\\config\\common\\ramps\\cryomag_ramp_table.txt", "r");
 
 
 	if (ramp_file != NULL) {
+		printf("\n ==> Printing Lines!");
 		/* skip first line */
 		fgets(buffer, 25, ramp_file);
 		
@@ -87,11 +89,13 @@ FILE * ramp_file;
 		exit(-1);
 	}
 	fclose(ramp_file);
-	// Print ramp rate table values
+	/* Print ramp rate table values */
 	for (int i = 0; i < line; i++) {
 		printf("\nTarget:\t %f \t Rate:\t %f", ramp_targets[i], ramp_rates[i]);
 	}
 
+
+}
 		
 
 
@@ -110,13 +114,12 @@ FILE * ramp_file;
 		return nearest_index;
 	}
 
+
+
 }%
 
 
-
-
-
-float abs_target; /* absolute value of set target */
+ /* absolute value of set target */
 
 foreign ssId;
 
@@ -134,7 +137,8 @@ ss fsm {
 			set_max = 34.92; pvPut(set_max, SYNC);
 			set_output_mode = 0; pvPut(set_output_mode, SYNC);
 			set_pause = 1; pvPut(set_pause, SYNC);
-			
+			read_ramp_rates();
+			printf("**TEST**: %f", ramp_rates[0]);
 			/* strcpy(): because C */
 			strcpy(set_error, " ==> I'm an error boop!"); pvPut(set_error, SYNC);
 			
