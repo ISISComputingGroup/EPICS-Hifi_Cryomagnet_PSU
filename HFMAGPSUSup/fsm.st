@@ -1,10 +1,27 @@
 program fsm("P")
 
+/*
+**************************************************************************
+fsm.st
+
+State Machine for the Hifi Cryomagnet PSU
+
+- Reads ramp rate table from external file and stored in 
+  two unsorted arrays: ramp_targets and their corresponding ramp_rates.
+- Ramp file reading skips line 0, it is reserved for column headers. 
+  Subsequent lines have pairs
+  of space-seperated values.
+- Ramping is incremental (ramps to interim points 
+  along the way) to avoid ramping too quickly if there 
+  is a comms error. 
+
+*************************************************************************
+*/
+
 #include "seqPVmacros.h"
 %{#include <stdlib.h>}%
 %{#include <stdio.h>}%
 %{#include <float.h>}%
-
 
 /* Turn on run-time debug messages */
 option +d;
@@ -45,23 +62,20 @@ int set_output_mode; assign set_output_mode to "{P}:OUTPUTMODE:SP";
 /* File reading variables */
 char buffer[25];
 int line = 0;
-
 char *token;
 char delim[2] = " ";
-int temp_target_table_index = 0;
+double ramp_rates[64];
+double ramp_targets[64];
 
 /* Ramp Rate Check Variables */
 double difference_ramp_up;
 double difference_ramp_down;
 double check_difference;
+int temp_target_table_index = 0;
 
 double final_target;
 int largest_target_index;
 int smallest_target_index;
-
-double ramp_rates[64];
-double ramp_targets[64];
-
 
 
 float abs_target;
@@ -71,16 +85,13 @@ float abs_target;
 	
 static int read_ramp_rates() {	
 
-	/* Ramp table values are read from the text file and stored in two unsorted arrays: 
-		ramp_targets and their corresponding ramp_rates.
-		
-		(this would probably be less convoluted if it were a sorted hash map)
-	*/
+	/*  :returns: Index value of next ramp target/ramp rate. */
+	
 	FILE *ramp_file;
 	ramp_file = fopen("C:\\Instrument\\Settings\\config\\common\\ramps\\cryomag_ramp_table.txt", "r");
 	
 	if (ramp_file != NULL) {
-		/* skip first line */
+		/* Skip first line */
 		fgets(buffer, 25, ramp_file);
 		
 		while (fgets(buffer, 25, ramp_file) != NULL) {			
@@ -90,8 +101,7 @@ static int read_ramp_rates() {
 			ramp_rates[line] = strtod(token, NULL);			
 			line++;			
 		}	
-	}
-	
+	}	
 	else {
 		printf("\nFile Read Error");
 		exit(-1);
@@ -105,62 +115,51 @@ static int read_ramp_rates() {
 }
 
 static int find_nearest_ramp_rate(double current_output) {
-	/* Are we ramping up or down? */
-	/* ramping up */
 
-	difference_ramp_down = DBL_MAX;
-	difference_ramp_up = DBL_MAX;
 	int nearest_index = 0;
+	difference_ramp_down = DBL_MAX;
+	difference_ramp_up = DBL_MAX;	
 	largest_target_index = 0;
 	smallest_target_index = 0;
+	
 	for (int x = 0; x < line; x++) {
-		/* find largest value in array */
+		/* Find largest target in ramp table */
 		if (ramp_targets[x] > ramp_targets[largest_target_index]) {
 			largest_target_index = x;
 		}
-		/* find smallest value */
+		/* Find smallest target in ramp table */
 		if (ramp_targets[x] < ramp_targets[smallest_target_index]) {
 			smallest_target_index = x;
 		}
 		
-		/* ramping up? Find nearest higher value */
-		if (get_final_target > current_output) {
-			
+		/* Ramping up? Find nearest higher value */
+		if (get_final_target > current_output) {			
 			if (ramp_targets[x] > current_output) {
 				check_difference = ramp_targets[x] - current_output;
 				if (check_difference < difference_ramp_up) {
 					difference_ramp_up = check_difference;
-					printf("\ndifference_ramp_up: %f new target: %f", difference_ramp_up, ramp_targets[x]);					
 					nearest_index = x;
 				}
 			}
 		}
-		/* ramping down? Find nearest lower value */
+		/* Ramping down? Find nearest lower value */
 		else {
 			if (ramp_targets[x] < current_output) {
 				check_difference = current_output - ramp_targets[x];
 				if (check_difference < difference_ramp_down) {
 					difference_ramp_down = check_difference;
-					printf("\ndifference_ramp_down: %f new target: %f", difference_ramp_down, ramp_targets[x]);
 					nearest_index = x;
 				}
 			}
 		}
 	}
 	/* If we have reached the last table value, and our final target is beyond that - */
-	if ((get_final_target > ramp_targets[largest_target_index]) && (current_output >= ramp_targets[largest_target_index])) {
+	if (((get_final_target > ramp_targets[largest_target_index]) && (current_output >= ramp_targets[largest_target_index])) ||
+     	((get_final_target < ramp_targets[smallest_target_index]) && (current_output <= ramp_targets[smallest_target_index]))) {
 		printf("\n==> We're heading beyond the ranges of the ramp table!");
 		nearest_index = 100;
 	}
-	if ((get_final_target < ramp_targets[smallest_target_index]) && (current_output <= ramp_targets[smallest_target_index])) {
-		printf("\n==> Heading under the ramp table!");
-		nearest_index = 100;
-	}
-	printf("\n");		
-	printf("\n==> Current output: %f \t index: %d", current_output, nearest_index);
-	printf("\n");
 	return nearest_index;
-
 }
 
 }%
@@ -182,44 +181,34 @@ ss fsm {
 			set_output_mode = 0; pvPut(set_output_mode, SYNC);
 			set_pause = 1; pvPut(set_pause, SYNC);			
 			/* strcpy(): because C */
-			strcpy(set_error, "==> I'm an error!"); pvPut(set_error, SYNC);
-			
-
+			strcpy(set_error, "==> I'm an error!"); pvPut(set_error, SYNC);		
 			/* Get the Current Direction (GS), read and parse the response, noting it in a global, also note the Direction in a local variable*/	    
 		}
-
+		
 		when(delay(1)) {	
-			printf("\n==> Moving to idle state...");
+		/*	printf("\n==> Moving to idle state..."); */
 		} state heater_idle
 	}  
 
 
 	state heater_idle {
-
-		entry {
+		
+		entry {			
 			printf("\n==> heater_idle: Waiting for heater to be switched off\n");
 		}
 
 		when(strcmp("OFF", get_heater_status)==0) {
-			printf("\nheater_idle ==> ramp_idle\n");    
-		} state ramp_idle
-
-	/* probably dont need this loop? 
-	when(strcmp("ON", get_heater_status)==0) {
-	  
-	} state heater_idle
-	*/	
+		/*	printf("\nheater_idle ==> ramp_idle\n");  */  
+		} state ramp_idle	
 	}
 
 	state ramp_idle {
 
-		entry {
-			
+		entry {			
 			printf("\n==> ramp_idle: Waiting for system to be unpaused...");
 		}
 
-		when(strcmp("ON", get_pause)==0) {
-			
+		when(strcmp("ON", get_pause)==0) {			
 		  /* things to do when paused - monitor other variables? */
 		  /*
 		  
@@ -232,10 +221,13 @@ ss fsm {
 		   if it is Gauss set it to Output (T) in the global status x 10000
 		  */
 		} state ramp_idle
+		
+		when(strcmp("ON", get_heater_status)==0) {
+			printf("\n==> Heater turned on, moving to heater_idle");
+		} state heater_idle
 
 		/* If system is unpaused, move to ramping state */
-		when(strcmp("OFF", get_pause)==0) {
-			
+		when(strcmp("OFF", get_pause)==0) {			
 			printf("\nramp_idle ==> set_ramp_values");	
 			/* printf("\n==> final target = %f", get_final_target); */
 		  
@@ -257,30 +249,25 @@ ss fsm {
 
 		entry {
 			
-			printf("\n==> ramp_active: Ramping to next target: %f", get_mid);
-			
-			/* Change value of Direction depending on +/-ve of target */
-	
+			printf("\n==> ramp_active: ramping to next target: %f", get_mid);			
+			/* Change value of Direction depending on +/-ve of target */	
 			if(get_mid < 0) {
 				set_direction = 0; pvPut(set_direction, SYNC);
 			}
 			else if(get_mid > 0) {
 				set_direction = 2; pvPut(set_direction, SYNC);
-			}
-			
+			}			
 		}
 		
-		/* when ramp is complete, pause system and move to idle state */
+		/* When the final target is reached, pause system and move to idle state */
 		when(fabs(get_final_target - get_output) < 0.00001) {
 			printf("\nramp_active ==> ramp_complete");
-			set_pause = 1;
-			pvPut(set_pause, SYNC);
+			set_pause = 1; pvPut(set_pause, SYNC);
 		} state ramp_complete
 		
 		
-		
+		/* When the interim target is reached, search for next target */
 		when(fabs(get_output - get_mid) < 0.00001) {
-			printf("\n get_output: %f \t ramp_targets[index]: %f \t get_mid: %f", get_output, ramp_targets[temp_target_table_index], get_mid);
 			printf("\nramp_active ==> set_ramp_values");			
 		} state set_ramp_values
 		/*
@@ -299,10 +286,7 @@ ss fsm {
 			
 		} state ramp_to_zero
 		*/
-		
-	
 			
-				
 			/* whilst still ramping, do these things... */
 		   /*
 		  abs_target = abs(get_mid);
@@ -342,82 +326,63 @@ ss fsm {
 		closest ramp and write the status to the global status.
 		*/
 
-
 		/* if pause is on, stop ramping */
 		when(strcmp("ON", get_pause)==0) {			
 			printf("\n==> Ramping paused! pause on\n");
 		} state ramp_idle
+		/* if heater is on, stop ramping */
+		when(strcmp("ON", get_heater_status)==0) {
+			printf("\n==> Ramping aborted, heater turned on");
+			set_pause = 1; pvPut(set_pause, SYNC);
+		} state heater_idle
 	} 
 	
 	state set_ramp_values {
 		entry {
-			printf("\n==> Attemping to read ramp values...");
+			printf("\n\n==> Attemping to read ramp values...");
 			read_ramp_rates();
-			temp_target_table_index = find_nearest_ramp_rate(get_output);
-			
+			temp_target_table_index = find_nearest_ramp_rate(get_output);			
 			
 			/* If we're ramping up */
 			if (get_final_target > get_output) {
 				/* if target is smaller than final target, set mid/rate to next value in table */
 				if (ramp_targets[temp_target_table_index] <= get_final_target) {
-					printf("\n==> Setting target to next table value");
 					set_mid = ramp_targets[temp_target_table_index];
-					pvPut(set_mid, SYNC);
 					set_ramp_rate = ramp_rates[temp_target_table_index];	
-					pvPut(set_ramp_rate, SYNC);			
-					printf("\nRamp up: Set mid to: %f \t Mid actual value: %f", set_mid, get_mid);				
 				}
 				/* if target is larger than the final target, set mid to be final_target */
 				else if (ramp_targets[temp_target_table_index] > get_final_target) {
-					printf("\n==> Setting target to FINAL TARGET");
 					set_mid = get_final_target;
-					pvPut(set_mid, SYNC);
 					set_ramp_rate = get_ramp_rate;
-					pvPut(set_ramp_rate, SYNC);				
 				}			
-				else {
-					printf("\nNone of these things fired!");
-				}	
 			}
 			else {
 			/* if ramping down */	
 				if (ramp_targets[temp_target_table_index] >= get_final_target) {
-					printf("\n==> Setting target to lower table value");
 					set_mid = ramp_targets[temp_target_table_index];
-					pvPut(set_mid, SYNC);
 					set_ramp_rate = ramp_rates[temp_target_table_index];	
-					pvPut(set_ramp_rate, SYNC);			
-					printf("\nRamp down: Set mid to: %f \t Mid actual value: %f", set_mid, get_mid);				
 				}
 				/* if target is larger than the final target, set mid to be final_target */
 				else if (ramp_targets[temp_target_table_index] < get_final_target) {
-					printf("\n==> Setting target to FINAL TARGET - lower boundary");
 					set_mid = get_final_target;
-					pvPut(set_mid, SYNC);
 					set_ramp_rate = get_ramp_rate;
-					pvPut(set_ramp_rate, SYNC);				
-				}			
-			
+				}	
 			}
-			
+			/* If we're beyond the ranges of the ramp table, set target to be user's Final target, and 
+			   rate to be the currently used rate. */
 			if (temp_target_table_index > 99) {
-				printf("nearest_index = 100");
 				set_mid = get_final_target;
-				pvPut(set_mid, SYNC);
 				set_ramp_rate = get_ramp_rate;
-				pvPut(set_ramp_rate, SYNC);
-				printf("\nSet mid to: %f \t Mid actual value: %f", set_mid, get_mid);
 			}			
 			
-					
-			printf("\n==> Set vals: Current Target: %f \t Final Target: %f Rate: %f", get_mid, get_final_target, get_ramp_rate);
-			
+			/* Finally, set these PV values */
+			pvPut(set_ramp_rate, SYNC);
+			pvPut(set_mid, SYNC);
+			printf("\n==> Set values: Current Target: %f \t Final Target: %f \t Rate: %f", get_mid, get_final_target, get_ramp_rate);			
 		}
 		
-		
-		
 		when (delay(2)) {
-			printf("\nset_ramp_values ==> ramp_active");
+		/*	printf("\nset_ramp_values ==> ramp_active"); */
 		} state ramp_active
 	}
 
@@ -434,10 +399,11 @@ ss fsm {
 	
 	state ramp_complete {
 		entry {
-			printf("\nramp_complete ==> ramp_idle\n");			
+			printf("\n\nRamp complete! Moving to ramp_idle");			
 		}
 		when (delay(2)) {
 			
 		} state ramp_idle
 	}
 }
+
