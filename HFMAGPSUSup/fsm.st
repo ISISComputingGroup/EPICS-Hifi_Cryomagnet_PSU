@@ -43,14 +43,25 @@ PV(string, get_heater_status, "{P}:HEATERSTATUS", Monitor);
 PV(double, get_final_target, "{P}:MIDFINALTARGET", Monitor);
 
 PV(double, set_zero, "{P}:ZERO", Monitor);
-PV(string, set_error, "{P}:ERRORMESSAGE", Monitor);
+
 PV(double, set_final_target, "{P}:MIDFINALTARGET", Monitor);
 
-/* set these three to the lower type of PV assignment, not PV() */
+
+char set_error_message[256]; assign set_error_message to "{P}:ERRORMESSAGE";
+char set_log_message[256]; assign set_log_message to "{P}:LOGMESSAGE";
+double set_ramp_table_rates[64]; assign set_ramp_table_rates to "{P}:RAMPTABLERATES";
+char set_ramp_table_targets[256]; assign set_ramp_table_targets to "{P}:RAMPTABLETARGETS";
+char temp[20];
+
+/*PV(char, set_log_message, "{P}:LOGMESSAGE", Monitor); 
+
+PV(char, set_table_rates, "{P}:RAMPTABLERATES", Monitor);
+PV(char, set_table_targets, "{P}:RAMPTABLETARGETS", Monitor);
+*/
+
 
 double set_max; assign set_max to "{P}:MAX:SP";
 double set_mid; assign set_mid to "{P}:MID:SP";
-
 int set_pause; assign set_pause to "{P}:PAUSE:SP";
 double set_limit; assign set_limit to "{P}:LIMIT:SP";
 int set_target; assign set_target to "{P}:RAMPTARGET:SP";
@@ -64,8 +75,8 @@ char buffer[25];
 int line = 0;
 char *token;
 char delim[2] = " ";
-double ramp_rates[64];
-double ramp_targets[64];
+double ramp_rates[64] = { -1 };
+double ramp_targets[64] = { -1 };
 
 /* Ramp Rate Check Variables */
 double difference_ramp_up;
@@ -79,7 +90,7 @@ int smallest_target_index;
 
 
 float abs_target;
-
+int j;
 /* Reading ramp table values from external txt file */
 %{
 	
@@ -106,7 +117,7 @@ static int read_ramp_rates() {
 		printf("\nFile Read Error");
 		exit(-1);
 	}
-	fclose(ramp_file);
+	fclose(ramp_file);	
 	/* Print ramp rate table values 
 	for (int i = 0; i < line; i++) {
 		printf("\nTarget:\t %f \t Rate:\t %f", ramp_targets[i], ramp_rates[i]);
@@ -162,7 +173,34 @@ static int find_nearest_ramp_rate(double current_output) {
 	return nearest_index;
 }
 
+static void set_ramp_pvs(double ramp_rates[], double ramp_targets[]) {
+	/* Take target/rate values from text file and write them to RAMPTABLERATES and RAMPTABLETARGET PVs */
+	/*strcpy(set_ramp_table_rates, ""); */
+	strcpy(set_ramp_table_targets, "");
+	
+	int j;
+	char tempy[20];
+	for (j = 0; j < line; j++) {
+
+		sprintf(tempy, "%f ", ramp_rates[j]);
+		/*strcat(set_ramp_table_rates, tempy);*/
+		set_ramp_table_rates[j] = ramp_rates[j];
+		
+		/*
+		sprintf(tempy, "%f ", ramp_targets[j]);
+		strcat(set_ramp_table_targets, tempy);		
+		*/
+	}
+	
+	for (int x = 0; x < sizeof(set_ramp_table_rates); x++) {
+		
+		printf("\nramp_table_rates: %f", set_ramp_table_rates[x]);
+	}
+	printf("\nramp_table_targets: %s", set_ramp_table_targets);
+}
 }%
+
+
 
 foreign ssId;
 
@@ -173,6 +211,7 @@ ss fsm {
 		entry {
 			/* Set initial PV variables */
 			printf("\n==> init: Setting initial variable values\n");
+			read_ramp_rates();
 			set_limit = 5.0; pvPut(set_limit, SYNC);
 			set_constant = 0.00029; pvPut(set_constant, SYNC);
 			set_zero = 0.000; pvPut(set_zero, SYNC);
@@ -181,7 +220,19 @@ ss fsm {
 			set_output_mode = 0; pvPut(set_output_mode, SYNC);
 			set_pause = 1; pvPut(set_pause, SYNC);			
 			/* strcpy(): because C */
-			strcpy(set_error, "==> I'm an error!"); pvPut(set_error, SYNC);		
+			strcpy(set_error_message, " ==> I'm an error!"); pvPut(set_error_message, SYNC);
+			strcpy(set_log_message, " ==> I'm the initial log message!"); pvPut(set_log_message, SYNC);
+			
+			
+			/*strcpy(set_ramp_table_targets, set_ramp_pvs(ramp_targets); */
+			/*strcpy(set_ramp_table_rates, set_ramp_pvs(ramp_rates, set_ramp_table_rates)); */
+			set_ramp_pvs(ramp_rates, ramp_targets);
+			/*pvPut(set_ramp_table_targets, SYNC);*/
+			pvPut(set_ramp_table_rates, SYNC);
+			/*
+			strcpy(set_table_rates, "I'm a table rate!");
+			pvPut(set_table_rates, SYNC);
+			*/
 			/* Get the Current Direction (GS), read and parse the response, noting it in a global, also note the Direction in a local variable*/	    
 		}
 		
@@ -189,7 +240,6 @@ ss fsm {
 		/*	printf("\n==> Moving to idle state..."); */
 		} state heater_idle
 	}  
-
 
 	state heater_idle {
 		
@@ -263,6 +313,7 @@ ss fsm {
 		when(fabs(get_final_target - get_output) < 0.00001) {
 			printf("\nramp_active ==> ramp_complete");
 			set_pause = 1; pvPut(set_pause, SYNC);
+			
 		} state ramp_complete
 		
 		
