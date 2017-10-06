@@ -50,7 +50,7 @@ PV(double, set_final_target, "{P}:MIDFINALTARGET", Monitor);
 char set_error_message[256]; assign set_error_message to "{P}:ERRORMESSAGE";
 char set_log_message[256]; assign set_log_message to "{P}:LOGMESSAGE";
 double set_ramp_table_rates[64]; assign set_ramp_table_rates to "{P}:RAMPTABLERATES";
-char set_ramp_table_targets[256]; assign set_ramp_table_targets to "{P}:RAMPTABLETARGETS";
+double set_ramp_table_targets[64]; assign set_ramp_table_targets to "{P}:RAMPTABLETARGETS";
 char temp[20];
 
 /*PV(char, set_log_message, "{P}:LOGMESSAGE", Monitor); 
@@ -94,7 +94,7 @@ int j;
 /* Reading ramp table values from external txt file */
 %{
 	
-static int read_ramp_rates() {	
+static void read_ramp_rates() {	
 
 	/*  :returns: Index value of next ramp target/ramp rate. */
 	
@@ -175,28 +175,12 @@ static int find_nearest_ramp_rate(double current_output) {
 
 static void set_ramp_pvs(double ramp_rates[], double ramp_targets[]) {
 	/* Take target/rate values from text file and write them to RAMPTABLERATES and RAMPTABLETARGET PVs */
-	/*strcpy(set_ramp_table_rates, ""); */
-	strcpy(set_ramp_table_targets, "");
-	
-	int j;
-	char tempy[20];
-	for (j = 0; j < line; j++) {
 
-		sprintf(tempy, "%f ", ramp_rates[j]);
-		/*strcat(set_ramp_table_rates, tempy);*/
+	for (j = 0; j < line; j++) {		
 		set_ramp_table_rates[j] = ramp_rates[j];
-		
-		/*
-		sprintf(tempy, "%f ", ramp_targets[j]);
-		strcat(set_ramp_table_targets, tempy);		
-		*/
+		set_ramp_table_targets[j] = ramp_targets[j];	
 	}
-	
-	for (int x = 0; x < sizeof(set_ramp_table_rates); x++) {
-		
-		printf("\nramp_table_rates: %f", set_ramp_table_rates[x]);
-	}
-	printf("\nramp_table_targets: %s", set_ramp_table_targets);
+
 }
 }%
 
@@ -223,12 +207,10 @@ ss fsm {
 			strcpy(set_error_message, " ==> I'm an error!"); pvPut(set_error_message, SYNC);
 			strcpy(set_log_message, " ==> I'm the initial log message!"); pvPut(set_log_message, SYNC);
 			
-			
-			/*strcpy(set_ramp_table_targets, set_ramp_pvs(ramp_targets); */
-			/*strcpy(set_ramp_table_rates, set_ramp_pvs(ramp_rates, set_ramp_table_rates)); */
 			set_ramp_pvs(ramp_rates, ramp_targets);
 			/*pvPut(set_ramp_table_targets, SYNC);*/
 			pvPut(set_ramp_table_rates, SYNC);
+			pvPut(set_ramp_table_targets, SYNC);
 			/*
 			strcpy(set_table_rates, "I'm a table rate!");
 			pvPut(set_table_rates, SYNC);
