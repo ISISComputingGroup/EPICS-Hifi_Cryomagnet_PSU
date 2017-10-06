@@ -7,7 +7,7 @@ fsm.st
 State Machine for the Hifi Cryomagnet PSU
 
 - Reads ramp rate table from external file and stored in 
-  two unsorted arrays: ramp_targets and their corresponding ramp_rates.
+  two unsorted arrays: ramp_table_targets and their corresponding ramp_table_rates.
 - Ramp file reading skips line 0, it is reserved for column headers. 
   Subsequent lines have pairs
   of space-seperated values.
@@ -49,8 +49,8 @@ PV(double, set_final_target, "{P}:MIDFINALTARGET", Monitor);
 
 char set_error_message[256]; assign set_error_message to "{P}:ERRORMESSAGE";
 char set_log_message[256]; assign set_log_message to "{P}:LOGMESSAGE";
-double set_ramp_table_rates[64]; assign set_ramp_table_rates to "{P}:RAMPTABLERATES";
-double set_ramp_table_targets[64]; assign set_ramp_table_targets to "{P}:RAMPTABLETARGETS";
+double ramp_table_rates[64]; assign ramp_table_rates to "{P}:RAMPTABLERATES";
+double ramp_table_targets[64]; assign ramp_table_targets to "{P}:RAMPTABLETARGETS";
 char temp[20];
 
 /*PV(char, set_log_message, "{P}:LOGMESSAGE", Monitor); 
@@ -75,8 +75,7 @@ char buffer[25];
 int line = 0;
 char *token;
 char delim[2] = " ";
-double ramp_rates[64] = { -1 };
-double ramp_targets[64] = { -1 };
+
 
 /* Ramp Rate Check Variables */
 double difference_ramp_up;
@@ -94,9 +93,14 @@ int j;
 /* Reading ramp table values from external txt file */
 %{
 	
-static void read_ramp_rates() {	
+static void read_ramp_table_rates() {	
 
 	/*  :returns: Index value of next ramp target/ramp rate. */
+	
+	/* empty our arrays to start re-write */
+	memset(ramp_table_targets, -1, sizeof(ramp_table_rates));
+	memset(ramp_table_rates, -1, sizeof(ramp_table_rates));
+	line = 0;
 	
 	FILE *ramp_file;
 	ramp_file = fopen("C:\\Instrument\\Settings\\config\\common\\ramps\\cryomag_ramp_table.txt", "r");
@@ -107,9 +111,9 @@ static void read_ramp_rates() {
 		
 		while (fgets(buffer, 25, ramp_file) != NULL) {			
 			token = strtok(buffer, delim);
-			ramp_targets[line] = strtod(token, NULL);			
+			ramp_table_targets[line] = strtod(token, NULL);			
 			token = strtok(NULL, delim);
-			ramp_rates[line] = strtod(token, NULL);			
+			ramp_table_rates[line] = strtod(token, NULL);			
 			line++;			
 		}	
 	}	
@@ -118,11 +122,11 @@ static void read_ramp_rates() {
 		exit(-1);
 	}
 	fclose(ramp_file);	
-	/* Print ramp rate table values 
+	/* Print ramp table values */
 	for (int i = 0; i < line; i++) {
-		printf("\nTarget:\t %f \t Rate:\t %f", ramp_targets[i], ramp_rates[i]);
+		printf("\nTarget:\t %f \t Rate:\t %f", ramp_table_targets[i], ramp_table_rates[i]);
 	}
-	*/	
+		
 }
 
 static int find_nearest_ramp_rate(double current_output) {
@@ -135,18 +139,18 @@ static int find_nearest_ramp_rate(double current_output) {
 	
 	for (int x = 0; x < line; x++) {
 		/* Find largest target in ramp table */
-		if (ramp_targets[x] > ramp_targets[largest_target_index]) {
+		if (ramp_table_targets[x] > ramp_table_targets[largest_target_index]) {
 			largest_target_index = x;
 		}
 		/* Find smallest target in ramp table */
-		if (ramp_targets[x] < ramp_targets[smallest_target_index]) {
+		if (ramp_table_targets[x] < ramp_table_targets[smallest_target_index]) {
 			smallest_target_index = x;
 		}
 		
 		/* Ramping up? Find nearest higher value */
 		if (get_final_target > current_output) {			
-			if (ramp_targets[x] > current_output) {
-				check_difference = ramp_targets[x] - current_output;
+			if (ramp_table_targets[x] > current_output) {
+				check_difference = ramp_table_targets[x] - current_output;
 				if (check_difference < difference_ramp_up) {
 					difference_ramp_up = check_difference;
 					nearest_index = x;
@@ -155,8 +159,8 @@ static int find_nearest_ramp_rate(double current_output) {
 		}
 		/* Ramping down? Find nearest lower value */
 		else {
-			if (ramp_targets[x] < current_output) {
-				check_difference = current_output - ramp_targets[x];
+			if (ramp_table_targets[x] < current_output) {
+				check_difference = current_output - ramp_table_targets[x];
 				if (check_difference < difference_ramp_down) {
 					difference_ramp_down = check_difference;
 					nearest_index = x;
@@ -165,25 +169,16 @@ static int find_nearest_ramp_rate(double current_output) {
 		}
 	}
 	/* If we have reached the last table value, and our final target is beyond that - */
-	if (((get_final_target > ramp_targets[largest_target_index]) && (current_output >= ramp_targets[largest_target_index])) ||
-     	((get_final_target < ramp_targets[smallest_target_index]) && (current_output <= ramp_targets[smallest_target_index]))) {
+	if (((get_final_target > ramp_table_targets[largest_target_index]) && (current_output >= ramp_table_targets[largest_target_index])) ||
+     	((get_final_target < ramp_table_targets[smallest_target_index]) && (current_output <= ramp_table_targets[smallest_target_index]))) {
 		printf("\n==> We're heading beyond the ranges of the ramp table!");
 		nearest_index = 100;
 	}
 	return nearest_index;
 }
 
-static void set_ramp_pvs(double ramp_rates[], double ramp_targets[]) {
-	/* Take target/rate values from text file and write them to RAMPTABLERATES and RAMPTABLETARGET PVs */
 
-	for (j = 0; j < line; j++) {		
-		set_ramp_table_rates[j] = ramp_rates[j];
-		set_ramp_table_targets[j] = ramp_targets[j];	
-	}
-
-}
 }%
-
 
 
 foreign ssId;
@@ -195,7 +190,7 @@ ss fsm {
 		entry {
 			/* Set initial PV variables */
 			printf("\n==> init: Setting initial variable values\n");
-			read_ramp_rates();
+
 			set_limit = 5.0; pvPut(set_limit, SYNC);
 			set_constant = 0.00029; pvPut(set_constant, SYNC);
 			set_zero = 0.000; pvPut(set_zero, SYNC);
@@ -207,14 +202,9 @@ ss fsm {
 			strcpy(set_error_message, " ==> I'm an error!"); pvPut(set_error_message, SYNC);
 			strcpy(set_log_message, " ==> I'm the initial log message!"); pvPut(set_log_message, SYNC);
 			
-			set_ramp_pvs(ramp_rates, ramp_targets);
-			/*pvPut(set_ramp_table_targets, SYNC);*/
-			pvPut(set_ramp_table_rates, SYNC);
-			pvPut(set_ramp_table_targets, SYNC);
-			/*
-			strcpy(set_table_rates, "I'm a table rate!");
-			pvPut(set_table_rates, SYNC);
-			*/
+			read_ramp_table_rates();
+			pvPut(ramp_table_rates, SYNC);
+			pvPut(ramp_table_targets, SYNC);
 			/* Get the Current Direction (GS), read and parse the response, noting it in a global, also note the Direction in a local variable*/	    
 		}
 		
@@ -238,6 +228,8 @@ ss fsm {
 
 		entry {			
 			printf("\n==> ramp_idle: Waiting for system to be unpaused...");
+			
+
 		}
 
 		when(strcmp("ON", get_pause)==0) {			
@@ -280,6 +272,10 @@ ss fsm {
 	state ramp_active {
 
 		entry {
+			
+			read_ramp_table_rates();
+			pvPut(ramp_table_rates, SYNC);
+			pvPut(ramp_table_targets, SYNC);
 			
 			printf("\n==> ramp_active: ramping to next target: %f", get_mid);			
 			/* Change value of Direction depending on +/-ve of target */	
@@ -373,30 +369,30 @@ ss fsm {
 	state set_ramp_values {
 		entry {
 			printf("\n\n==> Attemping to read ramp values...");
-			read_ramp_rates();
+			read_ramp_table_rates();
 			temp_target_table_index = find_nearest_ramp_rate(get_output);			
 			
 			/* If we're ramping up */
 			if (get_final_target > get_output) {
 				/* if target is smaller than final target, set mid/rate to next value in table */
-				if (ramp_targets[temp_target_table_index] <= get_final_target) {
-					set_mid = ramp_targets[temp_target_table_index];
-					set_ramp_rate = ramp_rates[temp_target_table_index];	
+				if (ramp_table_targets[temp_target_table_index] <= get_final_target) {
+					set_mid = ramp_table_targets[temp_target_table_index];
+					set_ramp_rate = ramp_table_rates[temp_target_table_index];	
 				}
 				/* if target is larger than the final target, set mid to be final_target */
-				else if (ramp_targets[temp_target_table_index] > get_final_target) {
+				else if (ramp_table_targets[temp_target_table_index] > get_final_target) {
 					set_mid = get_final_target;
 					set_ramp_rate = get_ramp_rate;
 				}			
 			}
 			else {
 			/* if ramping down */	
-				if (ramp_targets[temp_target_table_index] >= get_final_target) {
-					set_mid = ramp_targets[temp_target_table_index];
-					set_ramp_rate = ramp_rates[temp_target_table_index];	
+				if (ramp_table_targets[temp_target_table_index] >= get_final_target) {
+					set_mid = ramp_table_targets[temp_target_table_index];
+					set_ramp_rate = ramp_table_rates[temp_target_table_index];	
 				}
 				/* if target is larger than the final target, set mid to be final_target */
-				else if (ramp_targets[temp_target_table_index] < get_final_target) {
+				else if (ramp_table_targets[temp_target_table_index] < get_final_target) {
 					set_mid = get_final_target;
 					set_ramp_rate = get_ramp_rate;
 				}	
