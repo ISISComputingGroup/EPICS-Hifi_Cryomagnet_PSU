@@ -1,4 +1,4 @@
-program fsm("P")
+program fsm("P, RAMPTABLEDIR")
 
 /*
 **************************************************************************
@@ -51,6 +51,11 @@ char set_error_message[256]; assign set_error_message to "{P}:ERRORMESSAGE";
 char set_log_message[256]; assign set_log_message to "{P}:LOGMESSAGE";
 double ramp_table_rates[64]; assign ramp_table_rates to "{P}:RAMPTABLERATES";
 double ramp_table_targets[64]; assign ramp_table_targets to "{P}:RAMPTABLETARGETS";
+
+char ramp_table_directory[256]; assign ramp_table_directory to "{P}:RAMPTABLEDIRECTORY";
+
+
+
 char temp[20];
 
 /*PV(char, set_log_message, "{P}:LOGMESSAGE", Monitor); 
@@ -90,11 +95,15 @@ int smallest_target_index;
 
 float abs_target;
 int j;
+
+
+
+
 /* Reading ramp table values from external txt file */
 %{
 	
 static void read_ramp_table_rates() {	
-
+		
 	/*  :returns: Index value of next ramp target/ramp rate. */
 	
 	/* empty our arrays to start re-write */
@@ -103,7 +112,7 @@ static void read_ramp_table_rates() {
 	line = 0;
 	
 	FILE *ramp_file;
-	ramp_file = fopen("C:\\Instrument\\Settings\\config\\common\\ramps\\cryomag_ramp_table.txt", "r");
+	ramp_file = fopen(ramp_table_directory, "r");
 	
 	if (ramp_file != NULL) {
 		/* Skip first line */
@@ -189,8 +198,15 @@ ss fsm {
   
 		entry {
 			/* Set initial PV variables */
-			printf("\n==> init: Setting initial variable values\n");
+			
+			/* Get ramp table file directory and assign to PV */
+			strcpy(ramp_table_directory, macValueGet("RAMPTABLEDIR"));
+			pvPut(ramp_table_directory, SYNC);
 
+			printf("\n==> Ramp table location:");
+			printf(ramp_table_directory);
+			printf("\n==> init: Setting initial variable values\n");
+		
 			set_limit = 5.0; pvPut(set_limit, SYNC);
 			set_constant = 0.00029; pvPut(set_constant, SYNC);
 			set_zero = 0.000; pvPut(set_zero, SYNC);
