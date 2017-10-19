@@ -49,6 +49,7 @@ PV(string, get_heater_status, "{P}:HEATERSTATUS", Monitor);
 PV(double, get_final_target, "{P}:MIDFINALTARGET", Monitor);
 
 PV(int, write_ramp_file_trigger, "{P}:WRITEFILE", Monitor); 
+PV(int, read_ramp_file_trigger, "{P}:READFILE", Monitor); 
 /*
 PV(double, ramp_table_rates[64], "{P}:RAMPTABLERATES", Monitor);
 PV(double, ramp_table_targets[64],"{P}:RAMPTABLETARGETS", Monitor);
@@ -102,10 +103,9 @@ int i;
 	
 static void read_ramp_table_rates() {	
 
-
 	/* Reading ramp table values from external txt file */
 	/* Puts file values into ramp_table_rates and ramp_table_targets */
-	
+	printf("\n==> Reading ramp table file...");
 	/* empty our arrays to start re-write */
 	memset(ramp_table_targets, -1, sizeof(ramp_table_rates));
 	memset(ramp_table_rates, -1, sizeof(ramp_table_rates));
@@ -113,12 +113,13 @@ static void read_ramp_table_rates() {
 	
 	FILE *ramp_file;
 	ramp_file = fopen(ramp_table_directory, "r");
+	printf("\n==> File opened ");
 	
 	if (ramp_file != NULL) {
 		/* Skip first line */
-		fgets(buffer, 25, ramp_file);
+		fgets(buffer, 30, ramp_file);
 		
-		while (fgets(buffer, 25, ramp_file) != NULL) {			
+		while (fgets(buffer, 30, ramp_file) != NULL) {			
 			token = strtok(buffer, delim);
 			ramp_table_targets[line] = strtod(token, NULL);			
 			token = strtok(NULL, delim);
@@ -131,6 +132,7 @@ static void read_ramp_table_rates() {
 		exit(-1);
 	}
 	fclose(ramp_file);	
+	printf("\n==File read complete!");
 	/* Print ramp table values */
 	/*
 	for (int i = 0; i < line; i++) {
@@ -260,13 +262,14 @@ ss fsm {
 			system_stable = 1; pvPut(system_stable, SYNC);
 			strcpy(set_error_message, " ==> I'm an error!"); pvPut(set_error_message, SYNC);
 			strcpy(set_log_message, " ==> I'm the initial log message!"); pvPut(set_log_message, SYNC);
-			write_ramp_file_trigger = -5; pvPut(write_ramp_file_trigger, SYNC);
+			write_ramp_file_trigger = 0; pvPut(write_ramp_file_trigger, SYNC);
+			read_ramp_file_trigger = 0; pvPut(write_ramp_file_trigger, SYNC);
 			/*printf("\n==> ramp_trigger: %d", get_ramp_file_trigger); */
 		
 			read_ramp_table_rates(); 
 			pvPut(ramp_table_rates, SYNC);
 			pvPut(ramp_table_targets, SYNC);
-			
+			printf("\n==> Initial variable values set\n");
 			
 			
 			/* Get the Current Direction (GS), read and parse the response, noting it in a global, also note the Direction in a local variable*/	    
@@ -299,6 +302,10 @@ ss fsm {
 		when(write_ramp_file_trigger > 0) {
 			printf("\nMoving to write_file state!");
 		} state write_ramp_table_file
+		
+		when(read_ramp_file_trigger > 0) {
+			printf("\nMoving to read_file state!");
+		} state read_ramp_table_file
 		
 		when(strcmp("ON", get_pause)==0) {			
 		  /* things to do when paused - monitor other variables? */
@@ -521,6 +528,20 @@ ss fsm {
 
 			write_ramp_table_to_file();
 			write_ramp_file_trigger = 0; pvPut(write_ramp_file_trigger, SYNC);
+		}
+		when (delay(1)) {
+			
+		} state ramp_idle 
+		
+	}
+	
+	state read_ramp_table_file {
+		entry {
+			printf("\n==> Reading ramp table file and setting PVs...");
+			read_ramp_table_rates();
+			pvPut(ramp_table_rates, SYNC);
+			pvPut(ramp_table_targets, SYNC);
+			read_ramp_file_trigger = 0; pvPut(read_ramp_file_trigger, SYNC);
 		}
 		when (delay(1)) {
 			
