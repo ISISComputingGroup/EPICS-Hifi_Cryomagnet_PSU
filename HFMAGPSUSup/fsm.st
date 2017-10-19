@@ -48,13 +48,22 @@ PV(string, get_output_mode, "{P}:OUTPUTMODE", Monitor);
 PV(string, get_heater_status, "{P}:HEATERSTATUS", Monitor);
 PV(double, get_final_target, "{P}:MIDFINALTARGET", Monitor);
 
+PV(int, write_ramp_file_trigger, "{P}:WRITEFILE", Monitor); 
+/*
+PV(double, ramp_table_rates[64], "{P}:RAMPTABLERATES", Monitor);
+PV(double, ramp_table_targets[64],"{P}:RAMPTABLETARGETS", Monitor);
+*/
+
 PV(double, set_zero, "{P}:ZERO", Monitor);
 PV(double, set_final_target, "{P}:MIDFINALTARGET", Monitor);
 
-double ramp_table_rates[64]; assign ramp_table_rates to "{P}:RAMPTABLERATES";
-double ramp_table_targets[64]; assign ramp_table_targets to "{P}:RAMPTABLETARGETS";
+
+double ramp_table_rates[64]; assign ramp_table_rates to "{P}:RAMPTABLERATES"; monitor ramp_table_rates;
+double ramp_table_targets[64]; assign ramp_table_targets to "{P}:RAMPTABLETARGETS"; monitor ramp_table_targets;
+
 int system_stable; assign system_stable to "{P}:SYSTEMSTABLE";
 char ramp_table_directory[256]; assign ramp_table_directory to "{P}:RAMPTABLEDIRECTORY";
+
 
 double set_max; assign set_max to "{P}:MAX:SP";
 double set_mid; assign set_mid to "{P}:MID:SP";
@@ -86,6 +95,7 @@ int smallest_target_index;
 
 float abs_target;
 int j;
+int i;
 
 
 %{
@@ -132,23 +142,29 @@ static void read_ramp_table_rates() {
 
 static void write_ramp_table_to_file() {
 	
-	printf("\n\nWRITING FILE!");
+	printf("\n==>Writing file...");
 	
 	FILE *ramp_file;
-	ramp_file = fopen(ramp_table_directory, "w+");
+	ramp_file = fopen(ramp_table_directory, "w");
+	
+	for(i = 0; i < 64; i++) {
+		if (ramp_table_targets[i] > 0) {
+			j++;
+		}
+	}
 	
 	if (ramp_file != NULL) {
 		/* Skip first line 
 		char headers[25] = "targets rates";
 		fprintf(ramp_file, "%s", headers);
 		*/
-		fprintf(ramp_file, "fkdjsgh");
-		
-		for (int i = 0; i < sizeof(ramp_table_targets); i++) {
-			if (ramp_table_rates[i] > 0) {
-				fprintf(ramp_file, "%f %f", ramp_table_targets[i], ramp_table_rates[i]);
-			}
-			
+		fprintf(ramp_file, "target rate");
+	
+		for (int i = 0; i < j; i++) {
+			if ((ramp_table_rates[i] > 0) && (ramp_table_targets[i] > 0)) {
+				fprintf(ramp_file, "\n%f %f", ramp_table_targets[i], ramp_table_rates[i]);
+				printf("\nWriting line: %f %f", ramp_table_targets[i], ramp_table_rates[i]);
+			}			
 		}
 	}
 		
@@ -159,7 +175,7 @@ static void write_ramp_table_to_file() {
 	
 	fclose(ramp_file);
 	
-	printf("\n\nFILE WRITTEN!");
+	printf("\n==>File write successful!");
 	
 }
 
@@ -225,12 +241,15 @@ ss fsm {
 			/* Set initial PV variables */
 			
 			/* Get ramp table file directory and assign to PV for OPI access*/
+			
+			
 			strcpy(ramp_table_directory, macValueGet("RAMPTABLEDIR"));
 			pvPut(ramp_table_directory, SYNC);
-
-			printf("\n==> Ramp table location:");
+			
+			printf("\n==> Ramp table location: ");
 			printf(ramp_table_directory);
-			printf("\n==> init: Setting initial variable values\n");		
+			printf("\n==> init: Setting initial variable values\n");	
+			
 			set_limit = 5.0; pvPut(set_limit, SYNC);
 			set_constant = 0.00029; pvPut(set_constant, SYNC);
 			set_zero = 0.000; pvPut(set_zero, SYNC);
@@ -241,10 +260,15 @@ ss fsm {
 			system_stable = 1; pvPut(system_stable, SYNC);
 			strcpy(set_error_message, " ==> I'm an error!"); pvPut(set_error_message, SYNC);
 			strcpy(set_log_message, " ==> I'm the initial log message!"); pvPut(set_log_message, SYNC);
-			
-			read_ramp_table_rates();
+			write_ramp_file_trigger = -5; pvPut(write_ramp_file_trigger, SYNC);
+			/*printf("\n==> ramp_trigger: %d", get_ramp_file_trigger); */
+		
+			read_ramp_table_rates(); 
 			pvPut(ramp_table_rates, SYNC);
 			pvPut(ramp_table_targets, SYNC);
+			
+			
+			
 			/* Get the Current Direction (GS), read and parse the response, noting it in a global, also note the Direction in a local variable*/	    
 		}
 		
@@ -258,7 +282,7 @@ ss fsm {
 		entry {			
 			printf("\n==> heater_idle: Waiting for heater to be switched off\n");
 		}
-
+		
 		when(strcmp("OFF", get_heater_status)==0) {
 		/*	printf("\nheater_idle ==> ramp_idle\n");  */  
 		} state ramp_idle	
@@ -269,7 +293,13 @@ ss fsm {
 		entry {			
 			printf("\n==> ramp_idle: Waiting for system to be unpaused...");
 		}
+		
 
+		
+		when(write_ramp_file_trigger > 0) {
+			printf("\nMoving to write_file state!");
+		} state write_ramp_table_file
+		
 		when(strcmp("ON", get_pause)==0) {			
 		  /* things to do when paused - monitor other variables? */
 		  /*
@@ -478,12 +508,24 @@ ss fsm {
 	
 	state ramp_complete {
 		entry {
-			printf("\n\n==> Ramp complete! Moving to ramp_idle");
-			write_ramp_table_to_file();
+			printf("\n\n==> Ramp complete! Moving to ramp_idle");			
 		}
 		when (delay(2)) {
 			system_stable = 1; pvPut(system_stable, SYNC);
 		} state ramp_idle
+	}
+	
+	state write_ramp_table_file {
+		entry {
+			printf("\n==>Writing ramp table file to directory...");
+
+			write_ramp_table_to_file();
+			write_ramp_file_trigger = 0; pvPut(write_ramp_file_trigger, SYNC);
+		}
+		when (delay(1)) {
+			
+		} state ramp_idle 
+		
 	}
 }
 
