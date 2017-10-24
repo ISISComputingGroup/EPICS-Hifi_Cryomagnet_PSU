@@ -17,7 +17,7 @@ State Machine for the Hifi Cryomagnet PSU
   along the way) to avoid ramping too quickly if there 
   is a comms error. 
   
-- The directory of the ramp file is passed to this script via RAMPTABLEDIR 
+- The directory of the ramp file is passed to this script via the RAMPTABLEDIR 
   macro. This is sourced from the st-common.cmd IOC file.
 
   
@@ -47,24 +47,15 @@ PV(string, get_ramp_target, "{P}:RAMPTARGET", Monitor);
 PV(string, get_output_mode, "{P}:OUTPUTMODE", Monitor);
 PV(string, get_heater_status, "{P}:HEATERSTATUS", Monitor);
 PV(double, get_final_target, "{P}:MIDFINALTARGET", Monitor);
-
 PV(int, write_ramp_file_trigger, "{P}:WRITEFILE", Monitor); 
 PV(int, read_ramp_file_trigger, "{P}:READFILE", Monitor); 
-/*
-PV(double, ramp_table_rates[64], "{P}:RAMPTABLERATES", Monitor);
-PV(double, ramp_table_targets[64],"{P}:RAMPTABLETARGETS", Monitor);
-*/
 
 PV(double, set_zero, "{P}:ZERO", Monitor);
 PV(double, set_final_target, "{P}:MIDFINALTARGET", Monitor);
-
-
+char ramp_table_directory[256]; assign ramp_table_directory to "{P}:RAMPTABLEDIRECTORY";
 double ramp_table_rates[64]; assign ramp_table_rates to "{P}:RAMPTABLERATES"; monitor ramp_table_rates;
 double ramp_table_targets[64]; assign ramp_table_targets to "{P}:RAMPTABLETARGETS"; monitor ramp_table_targets;
-
 int system_stable; assign system_stable to "{P}:SYSTEMSTABLE";
-char ramp_table_directory[256]; assign ramp_table_directory to "{P}:RAMPTABLEDIRECTORY";
-
 
 double set_max; assign set_max to "{P}:MAX:SP";
 double set_mid; assign set_mid to "{P}:MID:SP";
@@ -83,8 +74,9 @@ char buffer[25];
 int line = 0;
 char *token;
 char delim[2] = " ";
+double sort_values[64][2];
 
-/* Ramp Rate Check Variables */
+/* Interim Ramp Rate Check Variables */
 double difference_ramp_up;
 double difference_ramp_down;
 double check_difference;
@@ -98,22 +90,43 @@ float abs_target;
 int j;
 int i;
 
-
 %{
+	
+	
+static void sort_column(double arr[][2], int line) {
+	/* Function to sort ramp file values into order by Target */
+	int i,j, k;
+	double key;
+	for(i=0;i<line;i++)
+	{
+		for(j=1;j<line;j++)
+		{
+			key=arr[j][i];
+			k=j-1;
+			while(k>=0 && arr[k][i]>key)
+			{
+				arr[k+1][i]=arr[k][i];
+				k--;
+			}
+			arr[k+1][i]=key;
+		}
+	}
+}
 	
 static void read_ramp_table_rates() {	
 
-	/* Reading ramp table values from external txt file */
+	/* Reading ramp table values from external .txt file */
 	/* Puts file values into ramp_table_rates and ramp_table_targets */
-	printf("\n==> Reading ramp table file...");
-	/* empty our arrays to start re-write */
+	/* printf("\n==> Reading ramp table file..."); */
+	/* Empty our arrays to start re-write */
 	memset(ramp_table_targets, -1, sizeof(ramp_table_rates));
 	memset(ramp_table_rates, -1, sizeof(ramp_table_rates));
+	memset(sort_values, -1, sizeof(sort_values));
 	line = 0;
 	
 	FILE *ramp_file;
 	ramp_file = fopen(ramp_table_directory, "r");
-	printf("\n==> File opened ");
+	/* printf("\n==> File opened "); */
 	
 	if (ramp_file != NULL) {
 		/* Skip first line */
@@ -121,9 +134,11 @@ static void read_ramp_table_rates() {
 		
 		while (fgets(buffer, 30, ramp_file) != NULL) {			
 			token = strtok(buffer, delim);
-			ramp_table_targets[line] = strtod(token, NULL);			
+			sort_values[line][0] = strtod(token, NULL);
+			/* ramp_table_targets[line] = strtod(token, NULL); */			
 			token = strtok(NULL, delim);
-			ramp_table_rates[line] = strtod(token, NULL);			
+			sort_values[line][1] = strtod(token, NULL);
+			/* ramp_table_rates[line] = strtod(token, NULL); */			
 			line++;			
 		}	
 	}	
@@ -132,19 +147,20 @@ static void read_ramp_table_rates() {
 		exit(-1);
 	}
 	fclose(ramp_file);	
-	printf("\n==File read complete!");
-	/* Print ramp table values */
-	/*
-	for (int i = 0; i < line; i++) {
-		printf("\nTarget:\t %f \t Rate:\t %f", ramp_table_targets[i], ramp_table_rates[i]);
-	}
-	*/
-		
+	/* printf("\n==> File read complete!"); */
+	
+	/* Sort ramp file values into ascending order of target, and put into our PV values*/
+	for (i = 0; i < line;i++) {
+		sort_column(sort_values, line);
+		ramp_table_targets[i] = sort_values[i][0];
+		ramp_table_rates[i] = sort_values[i][1];
+	}	
 }
+
 
 static void write_ramp_table_to_file() {
 	
-	printf("\n==>Writing file...");
+	printf("\n==> Writing file...");
 	
 	FILE *ramp_file;
 	ramp_file = fopen(ramp_table_directory, "w");
@@ -153,7 +169,7 @@ static void write_ramp_table_to_file() {
 		if (ramp_table_targets[i] > 0) {
 			j++;
 		}
-	}
+	}	
 	
 	if (ramp_file != NULL) {
 		/* Skip first line 
@@ -168,17 +184,16 @@ static void write_ramp_table_to_file() {
 				printf("\nWriting line: %f %f", ramp_table_targets[i], ramp_table_rates[i]);
 			}			
 		}
-	}
-		
+	}		
 	else {
 		printf("\nFile Read Error");
 		exit(-1);	
-	}
-	
+	}	
 	fclose(ramp_file);
 	
-	printf("\n==>File write successful!");
-	
+	printf("\n==> File write successful!");
+	/* Trigger a re-read to get values in sorted order */
+	read_ramp_table_rates();	
 }
 
 static int find_nearest_ramp_rate(double current_output) {
@@ -188,43 +203,27 @@ static int find_nearest_ramp_rate(double current_output) {
 	int nearest_index = 0;
 	difference_ramp_down = DBL_MAX;
 	difference_ramp_up = DBL_MAX;	
-	largest_target_index = 0;
+	largest_target_index = line-1;
 	smallest_target_index = 0;
-		
+	
 	for (int x = 0; x < line; x++) {
-		/* Find largest target in ramp table */
-		if (ramp_table_targets[x] > ramp_table_targets[largest_target_index]) {
-			largest_target_index = x;
-		}
-		/* Find smallest target in ramp table */
-		if (ramp_table_targets[x] < ramp_table_targets[smallest_target_index]) {
-			smallest_target_index = x;
-		}
-		
-		/* Ramping up? Find nearest higher value */
-		if (fabs(get_final_target) > current_output) {			
-			if (ramp_table_targets[x] > current_output) {
-				check_difference = ramp_table_targets[x] - fabs(current_output);
-				if (check_difference < difference_ramp_up) {
-					difference_ramp_up = check_difference;
-					nearest_index = x;
-				}
-			}
-		}
-		/* Ramping down? Find nearest lower value */
-		else {
-			if (ramp_table_targets[x] < fabs(current_output)) {
-				check_difference = fabs(current_output) - ramp_table_targets[x];
-				if (check_difference < difference_ramp_down) {
-					difference_ramp_down = check_difference;
-					nearest_index = x;
-				}
+		/* Ramping up? Find next highest value */
+		if (fabs(get_final_target) > fabs(current_output)) {
+			if(fabs(current_output) < ramp_table_targets[x]) {
+				nearest_index = x;
+				break;
+			}			
+		}		
+		/* Ramping down? Find next lowest Value */
+		if (fabs(get_final_target) < fabs(current_output)) {
+			if(fabs(current_output) > ramp_table_targets[x]) {
+				nearest_index = x;
 			}
 		}
 	}
 	/* If we have reached the last table value, and our final target is beyond that - */
-	if (((get_final_target > ramp_table_targets[largest_target_index]) && (current_output >= ramp_table_targets[largest_target_index])) ||
-     	((get_final_target < ramp_table_targets[smallest_target_index]) && (current_output <= ramp_table_targets[smallest_target_index]))) {
+	if (((fabs(get_final_target) > ramp_table_targets[line-1]) && ( fabs(current_output) >= ramp_table_targets[line-1]) ) ||
+     	( ( fabs(get_final_target) < ramp_table_targets[0]) && (fabs(current_output) <= ramp_table_targets[0])) ){
 		printf("\n==> We're heading beyond the ranges of the ramp table!");
 		nearest_index = 100;
 	}
@@ -240,22 +239,15 @@ ss fsm {
 	state init {
   
 		entry {
-			/* Set initial PV variables */
-			
-			/* Get ramp table file directory and assign to PV for OPI access*/
-			
-			
+			/* Set initial PV variables */			
+			printf("\n==> init: Setting initial variable values\n");
 			strcpy(ramp_table_directory, macValueGet("RAMPTABLEDIR"));
-			pvPut(ramp_table_directory, SYNC);
-			
-			printf("\n==> Ramp table location: ");
-			printf(ramp_table_directory);
-			printf("\n==> init: Setting initial variable values\n");	
+			pvPut(ramp_table_directory, SYNC);		
 			
 			set_limit = 5.0; pvPut(set_limit, SYNC);
 			set_constant = 0.00029; pvPut(set_constant, SYNC);
 			set_zero = 0.000; pvPut(set_zero, SYNC);
-			set_ramp_rate = 0.2; pvPut(set_ramp_rate, SYNC);
+			set_direction = 2; pvPut(set_direction);
 			set_max = 34.92; pvPut(set_max, SYNC);
 			set_output_mode = 0; pvPut(set_output_mode, SYNC);
 			set_pause = 1; pvPut(set_pause, SYNC);		
@@ -263,14 +255,12 @@ ss fsm {
 			strcpy(set_error_message, " ==> I'm an error!"); pvPut(set_error_message, SYNC);
 			strcpy(set_log_message, " ==> I'm the initial log message!"); pvPut(set_log_message, SYNC);
 			write_ramp_file_trigger = 0; pvPut(write_ramp_file_trigger, SYNC);
-			read_ramp_file_trigger = 0; pvPut(write_ramp_file_trigger, SYNC);
-			/*printf("\n==> ramp_trigger: %d", get_ramp_file_trigger); */
-		
+			read_ramp_file_trigger = 0; pvPut(write_ramp_file_trigger, SYNC);					
 			read_ramp_table_rates(); 
 			pvPut(ramp_table_rates, SYNC);
 			pvPut(ramp_table_targets, SYNC);
-			printf("\n==> Initial variable values set\n");
-			
+			set_ramp_rate = ramp_table_rates[0]; pvPut(set_ramp_rate, SYNC);
+			printf("\n==> Initial variable values set\n");			
 			
 			/* Get the Current Direction (GS), read and parse the response, noting it in a global, also note the Direction in a local variable*/	    
 		}
@@ -284,11 +274,19 @@ ss fsm {
 		
 		entry {			
 			printf("\n==> heater_idle: Waiting for heater to be switched off\n");
-		}
+		}	
 		
 		when(strcmp("OFF", get_heater_status)==0) {
-		/*	printf("\nheater_idle ==> ramp_idle\n");  */  
+		
 		} state ramp_idle	
+		
+		when(write_ramp_file_trigger > 0) {
+			printf("\nMoving to write_file state!");
+		} state write_ramp_table_file
+		
+		when(read_ramp_file_trigger > 0) {
+			printf("\nMoving to read_file state!");
+		} state read_ramp_table_file
 	}
 
 	state ramp_idle {
@@ -296,8 +294,6 @@ ss fsm {
 		entry {			
 			printf("\n==> ramp_idle: Waiting for system to be unpaused...");
 		}
-		
-
 		
 		when(write_ramp_file_trigger > 0) {
 			printf("\nMoving to write_file state!");
@@ -351,9 +347,24 @@ ss fsm {
 			read_ramp_table_rates();
 			pvPut(ramp_table_rates, SYNC);
 			pvPut(ramp_table_targets, SYNC);
+			
 			system_stable = 0; pvPut(system_stable, SYNC);
 			
-			printf("\n==> ramp_active: ramping to next target: %f", get_mid);			
+			if ((get_output >= 0) && (final_target >= 0)) {
+				printf("\nsetting D to +");
+				set_direction = 2;
+			}
+			else if ((get_output <= 0) && (final_target < 0)) {
+				printf("\nsetting D to -");
+				set_direction = 0;
+			}
+			pvPut(set_direction, SYNC);
+			
+			
+			
+			printf("\n==> ramp_active: ramping to next target: %f", get_mid);	
+
+			printf("\nDIRECTION: %s", get_direction);
 				
 		}
 		
@@ -431,10 +442,26 @@ ss fsm {
 	
 	state set_ramp_values {
 		entry {
-			printf("\n\n==> Attemping to read ramp values...");
+			/* printf("\n\n==> Attemping to read ramp table values..."); */
 			read_ramp_table_rates();
 			temp_target_table_index = find_nearest_ramp_rate(get_output);
-		
+			
+			if ( (get_output <= 0) && (final_target < 0) ) {
+				printf("\n\nflipping ramp table\n\n");
+				for (i = 0; i < line; i++) {
+					
+					if (ramp_table_rates[i] > 0) {
+						ramp_table_rates[i] *= -1;
+						ramp_table_targets[i] *= -1;
+					}
+				}
+			}
+			
+			set_mid = ramp_table_targets[temp_target_table_index];						
+			set_ramp_rate = ramp_table_rates[temp_target_table_index];
+			
+			
+			/*
 			if (get_output <= 0) {
 				printf("\n==> Setting direction to NEGATIVE");
 				set_direction = 0;
@@ -443,39 +470,16 @@ ss fsm {
 				printf("\n==> Setting direction to POSITIVE");
 				set_direction = 1;
 			}
+			
 			pvPut(set_direction, SYNC);
 			printf("\nDirection:");
 			printf(get_direction);
-			
+			*/
 			
 			
 			/* Values are found based on abs value of target (check this) */
 			
-			/* If we're ramping up */
-			if (get_final_target > get_output) {
-				/* If target is smaller than final target, set mid/rate to next value in table */
-				if (ramp_table_targets[temp_target_table_index] <= fabs(get_final_target)) {
-					set_mid = ramp_table_targets[temp_target_table_index];						
-					set_ramp_rate = ramp_table_rates[temp_target_table_index];
-				}
-				/* If target is larger than the final target, set mid to be final_target */
-				else if (ramp_table_targets[temp_target_table_index] > fabs(get_final_target)) {
-					set_mid = get_final_target;
-					set_ramp_rate = get_ramp_rate;
-				}			
-			}
-			else {
-			/* If ramping down */	
-				if (ramp_table_targets[temp_target_table_index] >= fabs(get_final_target)) {
-					set_mid = ramp_table_targets[temp_target_table_index];
-					set_ramp_rate = ramp_table_rates[temp_target_table_index];	
-				}
-				/* If target is larger than the final target, set mid to be final_target */
-				else if (ramp_table_targets[temp_target_table_index] < fabs(get_final_target)) {
-					set_mid = get_final_target;
-					set_ramp_rate = get_ramp_rate;
-				}
-			}				
+						
 			
 			/* If we're beyond the ranges of the ramp table, set target to be user's Final target, and 
 			   rate to be the currently used rate. */
@@ -483,15 +487,23 @@ ss fsm {
 				set_mid = get_final_target;
 				set_ramp_rate = get_ramp_rate;
 			}
-
-			/* If direction is negative, make target negative */
+			/*
+			/* If direction is negative, make target negative 
 			printf("\nCurrent direction:");
 			printf(get_direction);
 			if (strcmp("-", get_direction) == 0) {
 				printf("\n==> Neg ramping, *-1 ");
 				set_mid *= -1.0;
 			}
+			*/
 			/* Finally, set these PV values */
+			/*
+			if (strcmp("-", get_direction)==0) {
+				printf("\nFLIPPING MID!");
+				set_mid *= -1;
+				set_ramp_rate *= -1;
+			}
+			*/
 			pvPut(set_ramp_rate, SYNC);
 			pvPut(set_mid, SYNC);
 			printf("\n==> Set values: Current Target: %f \t Final Target: %f \t Rate: %f", get_mid, get_final_target, get_ramp_rate);			
@@ -525,14 +537,12 @@ ss fsm {
 	state write_ramp_table_file {
 		entry {
 			printf("\n==>Writing ramp table file to directory...");
-
 			write_ramp_table_to_file();
 			write_ramp_file_trigger = 0; pvPut(write_ramp_file_trigger, SYNC);
 		}
 		when (delay(1)) {
 			
-		} state ramp_idle 
-		
+		} state heater_idle		
 	}
 	
 	state read_ramp_table_file {
@@ -545,8 +555,7 @@ ss fsm {
 		}
 		when (delay(1)) {
 			
-		} state ramp_idle 
-		
+		} state heater_idle		
 	}
 }
 
