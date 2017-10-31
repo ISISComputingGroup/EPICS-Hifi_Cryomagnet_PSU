@@ -383,14 +383,9 @@ ss fsm {
 			
 			read_ramp_table_rates();
 			pvPut(ramp_table_rates, SYNC);
-			pvPut(ramp_table_targets, SYNC);
-			
-			system_stable = 0; pvPut(system_stable, SYNC);			
-			
+			pvPut(ramp_table_targets, SYNC);			
+			system_stable = 0; pvPut(system_stable, SYNC);	
 			printf("\n==> ramp_active: ramping to next target: %f", get_mid);	
-
-			/*printf("\nDIRECTION: %s", get_direction);*/
-				
 		}
 		
 		/* When the final target is reached, pause system and move to idle state */
@@ -402,7 +397,7 @@ ss fsm {
 		
 		/* When we've finished ramping to zero */
 		when((fabs(get_final_target - get_output) < 0.00001) && (ramp_zero_trigger == 1)) {
-			printf("\nRAMP TO ZERO COMPLETE, CONTINUING!");
+			printf("\nRamp to Zero complete, continuing to next target");
 			/* Continue to previous user-set target */
 			get_final_target = ramp_zero_cache;
 			ramp_zero_trigger = 0;
@@ -412,18 +407,7 @@ ss fsm {
 		when(fabs(get_output - get_mid) < 0.00001) {
 			/*printf("\nramp_active ==> set_ramp_values");	*/		
 		} state set_ramp_values
-		
-		/* If ramp has to move through 0, ramp to zero first */
-		
-		/* Do we have to do this?
-		when((get_output < 0 && get_mid > 0) || (get_output > 0 && get_mid < 0)) {
-			printf("\n==> Moving to ramp_to_zero state");
-			set_target = 0;
-			pvPut(set_target);			
-			
-		} state ramp_to_zero
-		*/
-			
+
 			/* whilst still ramping, do these things... */
 		   /*
 		  abs_target = abs(get_mid);
@@ -476,35 +460,29 @@ ss fsm {
 	
 	state set_ramp_values {
 		entry {
-			/* printf("\n\n==> Attemping to read ramp table values..."); */
 			read_ramp_table_rates();
 			temp_target_table_index = find_nearest_ramp_rate(get_output);
 			
-			if ((get_output >= 0) && (get_final_target >= 0)) {
-	
+			/* Set Direction based on current output and our target */
+			if ((get_output >= 0) && (get_final_target >= 0)) {	
 				set_direction = 2;
 			}
 			else if ((get_output <= 0) && (get_final_target < 0)) {
-
 				set_direction = 1;
-			}
-						
-			pvPut(set_direction, SYNC);
-			
+			}						
+			pvPut(set_direction, SYNC);			
 			
 			set_mid = ramp_table_targets[temp_target_table_index];						
 			set_ramp_rate = ramp_table_rates[temp_target_table_index];
 			
+			if ((set_mid > abs(get_final_target)) && (get_final_target != 0)) {
+				printf("\nMiddly-table value");
+				set_mid = fabs(get_final_target);
+			}
+			
 			pvPut(set_direction, SYNC);
 			printf("\nDirection:");
 			printf(get_direction);
-			
-			
-			
-			/* Values are found based on abs value of target (check this) */
-			
-						
-			
 			/* If we're beyond the ranges of the ramp table, set target to be user's Final target, and 
 			   rate to be the currently used rate. */
 			if (temp_target_table_index > 99) {
@@ -513,20 +491,14 @@ ss fsm {
 			}
 			
 			if (set_direction == 1) {
-				/*printf("\nget_direfion: %s", get_direction); */
-				/*printf("\nSwitching directions....");*/
-				/*printf("\nBEFORE: set_target = %f \tget_target =  %f", set_mid, get_mid);*/
-				/* set_ramp_rate *= -1.0; */
-				set_mid *= -1.0;
-				
+				set_mid *= -1.0;				
 			}
 			if (set_direction == 2) {
 				set_mid = fabs(set_mid);
 			}
 			
 			pvPut(set_ramp_rate, SYNC);
-			pvPut(set_mid, SYNC);
-						
+			pvPut(set_mid, SYNC);						
 		}
 		
 		when (delay(1)) {
@@ -535,17 +507,6 @@ ss fsm {
 	
 		} state ramp_active
 	}
-
-	state ramp_to_zero {
-		entry {
-			printf("\n==> Ramping to Zero...");
-		}
-		
-		when (get_output == 0) {
-			set_target = 1; /* set target back to MID to continue ramping */
-			pvPut(set_target);
-		} state ramp_active
-	} 
 	
 	state ramp_complete {
 		entry {
