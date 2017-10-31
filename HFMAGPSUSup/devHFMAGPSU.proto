@@ -79,7 +79,7 @@ setRampRate {
 }
 	
 setDirection {
-	out "D %{-|0|+}";
+	out "D %{0|-|+}";
 	in "%(\$1)75c";
 }	
 	
