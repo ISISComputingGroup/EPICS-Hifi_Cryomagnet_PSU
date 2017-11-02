@@ -93,6 +93,8 @@ int i;
 int ramp_zero_trigger;
 double ramp_zero_cache;
 
+double output_display; assign output_display to "{P}:OUTPUTDISPLAY";
+
 %{
 	
 	
@@ -212,21 +214,21 @@ static int find_nearest_ramp_rate(double current_output) {
 	for (int x = 0; x < file_lines; x++) {
 		/* Ramping up? Find next highest value */
 		if (fabs(get_final_target) > fabs(current_output)) {
-			if(fabs(current_output) < ramp_table_targets[x]) {
+			if(fabs(current_output) < (ramp_table_targets[x]/10000)) {
 				nearest_index = x;
 				break;
 			}			
 		}		
 		/* Ramping down? Find next lowest Value */
 		if (fabs(get_final_target) < fabs(current_output)) {
-			if(fabs(current_output) > ramp_table_targets[x]) {
+			if(fabs(current_output) > (ramp_table_targets[x]/10000)) {
 				nearest_index = x;
 			}
 		}
 	}
 	/* If we have reached the last table value, and our final target is beyond that - */
-	if (((fabs(get_final_target) > ramp_table_targets[file_lines-1]) && ( fabs(current_output) >= ramp_table_targets[file_lines-1]) ) ||
-     	( ( fabs(get_final_target) < ramp_table_targets[0]) && (fabs(current_output) <= ramp_table_targets[0])) ){
+	if (((fabs(get_final_target) > (ramp_table_targets[file_lines-1]/10000)) && ( fabs(current_output) >= (ramp_table_targets[file_lines-1]/10000)) ) ||
+     	( ( fabs(get_final_target) < (ramp_table_targets[0]/10000)) && (fabs(current_output) <= (ramp_table_targets[0]/10000))) ){
 		printf("\n==> We're heading beyond the ranges of the ramp table!");
 		nearest_index = 100;
 	}
@@ -385,18 +387,18 @@ ss fsm {
 			pvPut(ramp_table_rates, SYNC);
 			pvPut(ramp_table_targets, SYNC);			
 			system_stable = 0; pvPut(system_stable, SYNC);	
-			printf("\n==> ramp_active: ramping to next target: %f", get_mid);	
+			printf("\n==> ramp_active: ramping to next target: %f", (get_mid/10000));	
 		}
 		
 		/* When the final target is reached, pause system and move to idle state */
-		when((fabs(get_final_target - get_output) < 0.00001) && (ramp_zero_trigger == 0)) {
+		when((fabs(get_final_target - (get_output*10000)) < 0.00001) && (ramp_zero_trigger == 0)) {
 			printf("\nramp_zero_trigger: %i", ramp_zero_trigger);
 			printf("\nramp_active ==> ramp_complete");
 			set_pause = 1; pvPut(set_pause, SYNC);			
 		} state ramp_complete
 		
 		/* When we've finished ramping to zero */
-		when((fabs(get_final_target - get_output) < 0.00001) && (ramp_zero_trigger == 1)) {
+		when((fabs(get_final_target - (get_output*10000)) < 0.00001) && (ramp_zero_trigger == 1)) {
 			printf("\nRamp to Zero complete, continuing to next target");
 			/* Continue to previous user-set target */
 			get_final_target = ramp_zero_cache;
@@ -472,12 +474,12 @@ ss fsm {
 			}						
 			pvPut(set_direction, SYNC);			
 			
-			set_mid = ramp_table_targets[temp_target_table_index];						
+			set_mid = (ramp_table_targets[temp_target_table_index]/10000);						
 			set_ramp_rate = ramp_table_rates[temp_target_table_index];
 			
-			if ((set_mid > abs(get_final_target)) && (get_final_target != 0)) {
+			if ((set_mid > fabs(get_final_target)) && (get_final_target != 0)) {
 				printf("\nMiddly-table value");
-				set_mid = fabs(get_final_target);
+				set_mid = fabs(get_final_target/10000);
 			}
 			
 			pvPut(set_direction, SYNC);
@@ -486,7 +488,7 @@ ss fsm {
 			/* If we're beyond the ranges of the ramp table, set target to be user's Final target, and 
 			   rate to be the currently used rate. */
 			if (temp_target_table_index > 99) {
-				set_mid = get_final_target;
+				set_mid = (get_final_target/10000);
 				set_ramp_rate = get_ramp_rate;
 			}
 			
