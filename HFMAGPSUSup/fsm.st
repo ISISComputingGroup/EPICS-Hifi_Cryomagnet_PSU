@@ -40,7 +40,6 @@ PV(double, set_zero, "{P}:ZERO", Monitor);
 PV(double, get_limit, "{P}:LIMIT", Monitor);
 PV(string, get_pause, "{P}:PAUSE", Monitor);
 PV(double, get_output, "{P}:OUTPUT", Monitor);
-PV(double, get_gauss_output, "{P}:GAUSS", Monitor);
 PV(double, get_constant, "{P}:CONSTANT", Monitor);
 PV(double, get_ramp_rate, "{P}:RAMPRATE", Monitor);
 PV(string, get_direction, "{P}:DIRECTION", Monitor);
@@ -55,7 +54,6 @@ char ramp_table_directory[256]; assign ramp_table_directory to "{P}:RAMPTABLEDIR
 double ramp_table_rates[64]; assign ramp_table_rates to "{P}:RAMPTABLERATES"; monitor ramp_table_rates;
 double ramp_table_targets[64]; assign ramp_table_targets to "{P}:RAMPTABLETARGETS"; monitor ramp_table_targets;
 int system_stable; assign system_stable to "{P}:SYSTEMSTABLE";
-double ramp_time; assign ramp_time to "{P}:RAMPTIME";
 
 double set_max; assign set_max to "{P}:MAX:SP";
 double set_mid; assign set_mid to "{P}:MID:SP";
@@ -85,10 +83,10 @@ int temp_target_table_index = 0;
 int largest_target_index;
 int smallest_target_index;
 
+float abs_target;
+
 int ramp_zero_trigger;
 double ramp_zero_cache;
-double ramp_distance;
-double target_time_calc;
 
 %{
 	/* 
@@ -233,6 +231,20 @@ double target_time_calc;
 		}
 		return nearest_index;
 	}
+
+	static double convert_units(double val) {
+		/* Return the value of a variable based on whether the user has selected Amps or Gauss. */
+		if (val == 0) {
+				return 0;
+			}
+		else if (strcmp(get_output_mode, "GAUSS")==0) {
+				return val * 10000 * get_constant;
+			}
+		else {
+			return val;
+		}
+	}
+
 }%
 
 foreign ssId;
@@ -257,7 +269,7 @@ ss fsm {
 				set_direction = 2;
 			}
 			pvPut(set_direction, SYNC);
-			ramp_time = 0; pvPut(ramp_time, SYNC);
+			
 			set_max = 34.92; pvPut(set_max, SYNC);
 			set_output_mode = 1; pvPut(set_output_mode, SYNC);
 			set_pause = 1; pvPut(set_pause, SYNC);		
@@ -323,22 +335,10 @@ ss fsm {
 		} state heater_idle
 
 		/* If system is unpaused, move to ramping state */
-		when(strcmp("OFF", get_pause)==0) {	
-		
-			target_time_calc = final_target;
-			/* Calculate ramp duration to display in OPI */
-			
-			ramp_distance = fabs(final_target-get_gauss_output)/10000;
-			if (strcmp(get_output_mode, "TESLA")==0) {
-				ramp_distance /= get_constant;				
-			}
-			ramp_time = (ramp_distance/get_ramp_rate);
-			pvPut(ramp_time, SYNC);
-			/* 
-				If ramp will pass from + to - or - to +, flag our 'ramp to zero' trigger.
+		when(strcmp("OFF", get_pause)==0) {		
+			/* If ramp will pass from + to - or - to +, flag our 'ramp to zero' trigger.
 				Target becomes 0 and user's target is stored in a cache variable to be used 
-				after the ramp-to-zero is complete. 
-			*/			
+				after the ramp-tp-zero is complete. */
 			if (((get_output < 0) && (final_target > 0)) || ((get_output > 0) && (final_target < 0)))  {
 				ramp_zero_trigger = 1;
 				ramp_zero_cache = final_target;
@@ -358,7 +358,7 @@ ss fsm {
 			pvPut(ramp_table_rates, SYNC);
 			pvPut(ramp_table_targets, SYNC);			
 			system_stable = 0; pvPut(system_stable, SYNC);	
-			printf("\n==> ramp_active: ramping to next target: %f", (get_mid/10000));			
+			printf("\n==> ramp_active: ramping to next target: %f", (get_mid/10000));	
 		}
 		
 		/* When the final target is reached, pause system and move to idle state */
