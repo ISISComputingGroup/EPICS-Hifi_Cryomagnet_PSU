@@ -4,7 +4,7 @@ ReplyTimeout = 200;
 
 getDirection {
 	out "GET SIGN";
-	in "%*19c%{POSITIVE|NEGATIVE|ZERO}%*2c";
+	in "CURRENT DIRECTION: %{ZERO|NEGATIVE|POSITIVE}%*2c";
 }
 
 setDirection {
@@ -14,7 +14,7 @@ setDirection {
 	
 getOutputMode {
 	out "T";
-	in "%*15c %{AMPS|TESLA}%*2c";
+	in "%*8c UNITS: %{AMPS|TESLA}%*2c";
 }
 
 # tesla or amp units switch
@@ -25,12 +25,12 @@ setOutputMode {
 
 getOutput {
 	out "GET O";
-	in "%*8c%f%*{ AMPS| TESLA}%*4c%*{-|}%*f%*9c";
+	in "OUTPUT:%f %*{AMPS|TESLA} AT %*f VOLTS%*3c";
 }
 
 getRampTarget {
-	out "RAMP";
-	in "%*22c%{ZERO|MID|MAX}";
+	out "RAMP STATUS";
+	in "%#s";
 }
 		
 # ramp targets: zero, mid, max	
@@ -41,7 +41,7 @@ setRampTarget {
 
 getRampRate {
 	out "GET RATE";
-	in "%*20c%f%*8c";
+	in "%*8c RAMP RATE: %f A/SEC%*2c";
 }
 
 # ramp rate, amps per second
@@ -52,28 +52,40 @@ setRampRate {
 	
 getHeaterStatus {
 	out "HEATER";
-	in "%*24c%s %*#s%*f%*#s";
+	in "%*8c HEATER STATUS: %s%*2c";
 }
 
 # set heater on or off
 setHeaterStatus {
-	out "H %{ON|OFF}";
+	out "H %{OFF|ON}";
 	in "%(\$1)75c";
 }
 
 getHeaterValue {
 	out "GET H";
-	in "%*23c %f %*7c";
+	in "%*8c HEATER OUTPUT: %f VOLTS%*2c";
+}
+
+# value, in volts
+setHeaterValue {
+	out "S H %f";
+	in "%(\$1)75c";
 }
 
 getLimit {
 	out "GET VL";
-	in "%*24c%f%*8c";
+	in "%*8c VOLTAGE LIMIT: %f VOLTS%*2c";
+}
+
+# set voltage limit
+setLimit {
+	out "S L %f";
+	in "%(\$1)75c";
 }
 
 getConstant {
 	out "GET TPA";
-	in "%*24c %f %*5c";
+	in "%*8c FIELD CONSTANT: %f T/A%*2c";
 }
 
 # set field constant
@@ -89,7 +101,7 @@ setMaxTarget {
 
 getMaxTarget {
 	out "GET MAX";
-	in "%*21c %f %*{AMPS|TESLA}%*2c";
+	in "%*8c MAX SETTING: %f %*{AMPS|TESLA}%*2c";
 }
 
 setMidTarget {
@@ -99,12 +111,12 @@ setMidTarget {
 
 getMidTarget {
 	out "GET MID";
-	in "%*21c %f %*{AMPS|TESLA}%*2c";
+	in "%*8c MID SETTING: %f %*{AMPS|TESLA}%*2c";
 }
 	
 getPause {
 	out "P";
-	in "%*23c%{ON|OFF}%*2c";
+	in "%*8c PAUSE STATUS: %{OFF|ON}%*2c";
 }	
 
 
@@ -114,19 +126,5 @@ setPause {
 }
 	
 
-
-# value, in volts
-setHeaterValue {
-	out "S H %f";
-	in "%(\$1)75c";
-}
-
-
-
-# set voltage limit
-setLimit {
-	out "S L %f";
-	in "%(\$1)75c";
-}
 
 
