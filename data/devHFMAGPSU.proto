@@ -8,7 +8,7 @@ getDirection {
 }
 
 setDirection {
-	out "D %{0|-|+}";
+	out "D %{ZERO|NEGATIVE|POSITIVE}";
 	in "%(\$1)75c";
 }	
 	
@@ -19,7 +19,7 @@ getOutputMode {
 
 # tesla or amp units switch
 setOutputMode {
-	out "T %{0|1}";
+	out "T %{OFF|ON}";
 	in "%(\$1)75c";
 }
 

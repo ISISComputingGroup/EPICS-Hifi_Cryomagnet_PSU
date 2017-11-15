@@ -66,6 +66,7 @@ double set_ramp_rate; assign set_ramp_rate to "{P}:RAMPRATE:SP";
 int set_output_mode; assign set_output_mode to "{P}:OUTPUTMODE:SP";
 char set_error_message[256]; assign set_error_message to "{P}:ERRORMESSAGE";
 char set_log_message[256]; assign set_log_message to "{P}:LOGMESSAGE";
+int set_heater_status; assign set_heater_status to "{P}:HEATERSTATUS:SP";
 
 /* File reading variables */
 char buffer[25];
@@ -232,19 +233,6 @@ double ramp_zero_cache;
 		return nearest_index;
 	}
 
-	static double convert_units(double val) {
-		/* Return the value of a variable based on whether the user has selected Amps or Gauss. */
-		if (val == 0) {
-				return 0;
-			}
-		else if (strcmp(get_output_mode, "GAUSS")==0) {
-				return val * 10000 * get_constant;
-			}
-		else {
-			return val;
-		}
-	}
-
 }%
 
 foreign ssId;
@@ -255,10 +243,10 @@ ss fsm {
   
 		entry {
 			/* Set initial PV variables */			
-			printf("\n==> init: Setting initial variable values\n");
+			printf("\n==> FSM initialisation: setting PV values\n");
 			strcpy(ramp_table_directory, macValueGet("RAMPTABLEDIR"));
 			pvPut(ramp_table_directory, SYNC);		
-			
+			set_heater_status = 0; pvPut(set_heater_status, SYNC);
 			set_limit = 5.0; pvPut(set_limit, SYNC);
 			set_constant = 0.00029; pvPut(set_constant, SYNC);
 			set_zero = 0.000; pvPut(set_zero, SYNC);
