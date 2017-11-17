@@ -244,6 +244,7 @@ ss fsm {
 		entry {
 			/* Set initial PV variables */			
 			printf("\n==> FSM initialisation: setting PV values\n");
+			set_output_mode = 1; pvPut(set_output_mode, SYNC);
 			strcpy(ramp_table_directory, macValueGet("RAMPTABLEDIR"));
 			pvPut(ramp_table_directory, SYNC);		
 			set_heater_status = 0; pvPut(set_heater_status, SYNC);
@@ -258,8 +259,8 @@ ss fsm {
 			}
 			pvPut(set_direction, SYNC);
 			
-			set_max = 34.92; pvPut(set_max, SYNC);
-			set_output_mode = 1; pvPut(set_output_mode, SYNC);
+			set_max = 0.3; pvPut(set_max, SYNC);
+			
 			set_pause = 1; pvPut(set_pause, SYNC);		
 			system_stable = 1; pvPut(system_stable, SYNC);
 			strcpy(set_error_message, " ==> I'm an error!"); pvPut(set_error_message, SYNC);
