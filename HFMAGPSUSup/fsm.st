@@ -89,6 +89,17 @@ float abs_target;
 int ramp_zero_trigger;
 double ramp_zero_cache;
 
+/* direction setters */
+int POSITIVE = 2;
+int NEGATIVE = 1;
+/* Pause setters */
+int PAUSED = 1;
+int UNPAUSED = 0;
+/* ramp targets */
+int ZERO = 0;
+int MID = 1;
+int MAX = 2;
+
 %{
 	/* 
 		Escaped C Code - this section contains functions called within states.
@@ -253,14 +264,14 @@ ss fsm {
 			set_zero = 0.000; pvPut(set_zero, SYNC);
 			/* Set direction based on current +/- output */
 			if (get_output < 0) {
-				set_direction = 1;
+				set_direction = NEGATIVE;
 			} else {
-				set_direction = 2;
+				set_direction = POSITIVE;
 			}
 			pvPut(set_direction, SYNC);
-			
+			set_target = MID; (pvPut(set_target, SYNC);
 			set_max = 0.3; pvPut(set_max, SYNC);			
-			set_pause = 1; pvPut(set_pause, SYNC);		
+			set_pause = PAUSED; pvPut(set_pause, SYNC);		
 			system_stable = 1; pvPut(system_stable, SYNC);
 			strcpy(set_error_message, " ==> I'm an error!"); pvPut(set_error_message, SYNC);
 			strcpy(set_log_message, " ==> I'm the initial log message!"); pvPut(set_log_message, SYNC);
@@ -284,7 +295,7 @@ ss fsm {
 	state idle {
 
 		entry {			
-			printf("\n==> ramp_idle: Waiting for system to be unpaused...");
+			printf("\n==> idle: Waiting for system to be unpaused...");
 		}
 		
 		when(write_ramp_file_trigger > 0) {
@@ -299,7 +310,7 @@ ss fsm {
 		when(strcmp("OFF", get_pause)==0) {		
 			/* If ramp will pass from + to - or - to +, flag our 'ramp to zero' trigger.
 				Target becomes 0 and user's target is stored in a cache variable to be used 
-				after the ramp-tp-zero is complete. */
+				after the ramp-to-zero is complete. */
 			if (((get_output < 0) && (final_target > 0)) || ((get_output > 0) && (final_target < 0)))  {
 				ramp_zero_trigger = 1;
 				ramp_zero_cache = final_target;
@@ -326,7 +337,7 @@ ss fsm {
 		when((fabs(final_target - (get_output*10000)) < 0.00001) && (ramp_zero_trigger == 0)) {
 			printf("\nramp_zero_trigger: %i", ramp_zero_trigger);
 			printf("\nramp_active ==> ramp_complete");
-			set_pause = 1; pvPut(set_pause, SYNC);			
+			set_pause = PAUSED; pvPut(set_pause, SYNC);			
 		} state ramp_complete
 		
 		/* When we've finished ramping to zero */
@@ -356,10 +367,10 @@ ss fsm {
 			
 			/* Set Direction based on current output and our target */
 			if ((get_output >= 0) && (final_target >= 0)) {	
-				set_direction = 2;
+				set_direction = POSITIVE;
 			}
 			else if ((get_output <= 0) && (final_target < 0)) {
-				set_direction = 1;
+				set_direction = NEGATIVE;
 			}					
 			
 			set_mid = (ramp_table_targets[temp_target_table_index]/10000);						
@@ -378,10 +389,10 @@ ss fsm {
 			}
 			
 			/* Flip values depending on what our polarity is */
-			if (set_direction == 1) {
+			if (set_direction == NEGATIVE) {
 				set_mid *= -1.0;				
 			}
-			if (set_direction == 2) {
+			if (set_direction == POSITIVE) {
 				set_mid = fabs(set_mid);
 			}
 			
