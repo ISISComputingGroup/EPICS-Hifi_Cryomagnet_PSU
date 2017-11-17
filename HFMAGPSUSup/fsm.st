@@ -259,8 +259,7 @@ ss fsm {
 			}
 			pvPut(set_direction, SYNC);
 			
-			set_max = 0.3; pvPut(set_max, SYNC);
-			
+			set_max = 0.3; pvPut(set_max, SYNC);			
 			set_pause = 1; pvPut(set_pause, SYNC);		
 			system_stable = 1; pvPut(system_stable, SYNC);
 			strcpy(set_error_message, " ==> I'm an error!"); pvPut(set_error_message, SYNC);
@@ -279,29 +278,10 @@ ss fsm {
 		
 		when(delay(1)) {	
 
-		} state heater_idle
+		} state idle
 	}  
 
-	state heater_idle {
-		
-		entry {			
-			printf("\n==> heater_idle: Waiting for heater to be switched off\n");
-		}	
-		
-		when(strcmp("OFF", get_heater_status)==0) {
-		
-		} state ramp_idle	
-		
-		when(write_ramp_file_trigger > 0) {
-			printf("\nMoving to write_file state!");
-		} state write_ramp_table_file
-		
-		when(read_ramp_file_trigger > 0) {
-			printf("\nMoving to read_file state!");
-		} state read_ramp_table_file
-	}
-
-	state ramp_idle {
+	state idle {
 
 		entry {			
 			printf("\n==> ramp_idle: Waiting for system to be unpaused...");
@@ -314,14 +294,6 @@ ss fsm {
 		when(read_ramp_file_trigger > 0) {
 			printf("\nMoving to read_file state!");
 		} state read_ramp_table_file
-		
-		when(strcmp("ON", get_pause)==0) {
-			/* Moving to Ramp Idle State */
-		} state ramp_idle
-		
-		when(strcmp("ON", get_heater_status)==0) {
-			printf("\n==> Heater turned on, moving to heater_idle");
-		} state heater_idle
 
 		/* If system is unpaused, move to ramping state */
 		when(strcmp("OFF", get_pause)==0) {		
@@ -374,11 +346,7 @@ ss fsm {
 		when(strcmp("ON", get_pause)==0) {			
 			printf("\n==> Ramping paused! pause on\n");
 		} state ramp_idle
-		/* If heater is on, stop ramping */
-		when(strcmp("ON", get_heater_status)==0) {
-			printf("\n==> Ramping aborted, heater turned on");
-			set_pause = 1; pvPut(set_pause, SYNC);
-		} state heater_idle
+
 	} 
 	
 	state set_ramp_values {
@@ -430,11 +398,11 @@ ss fsm {
 	
 	state ramp_complete {
 		entry {
-			printf("\n==> Ramp complete! Moving to ramp_idle");			
+			printf("\n==> Ramp complete! Moving to idle state");			
 		}
 		when (delay(2)) {
 			system_stable = 1; pvPut(system_stable, SYNC);
-		} state ramp_idle
+		} state idle
 	}
 	
 	state write_ramp_table_file {
@@ -445,7 +413,7 @@ ss fsm {
 		}
 		when (delay(1)) {
 			
-		} state heater_idle		
+		} state idle		
 	}
 	
 	state read_ramp_table_file {
@@ -458,7 +426,7 @@ ss fsm {
 		}
 		when (delay(1)) {
 			
-		} state heater_idle		
+		} state idle		
 	}
 }
 
