@@ -8,7 +8,7 @@ getDirection {
 }
 
 setDirection {
-	out "D %{ZERO|NEGATIVE|POSITIVE}";
+	out "D %{0|-|+}";
 	in "%(\$1)75c";
 }	
 	
