@@ -1,6 +1,8 @@
 OutTerminator = CR LF;
 InTerminator = DC3;
-ReplyTimeout = 200;
+ReplyTimeout = 500;
+WriteTimeout = 2000;
+ReadTimeout = 2000;
 
 getDirection {
 	out "GET SIGN";

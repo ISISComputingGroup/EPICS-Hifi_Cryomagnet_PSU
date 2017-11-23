@@ -260,7 +260,7 @@ ss fsm {
 			set_output_mode = 1; pvPut(set_output_mode, SYNC);
 			strcpy(ramp_table_directory, macValueGet("RAMPTABLEDIR"));
 			pvPut(ramp_table_directory, SYNC);		
-			set_heater_status = 0; pvPut(set_heater_status, SYNC);
+			set_heater_status = 1; pvPut(set_heater_status, SYNC);
 			set_limit = 5.0; pvPut(set_limit, SYNC);
 			set_constant = 0.00029; pvPut(set_constant, SYNC);
 			set_zero = 0.000; pvPut(set_zero, SYNC);
@@ -272,7 +272,8 @@ ss fsm {
 			}
 			pvPut(set_direction, SYNC);
 			set_ramp_target = TARGET_MID; pvPut(set_ramp_target, SYNC);
-			set_max = 0.3; pvPut(set_max, SYNC);			
+			set_max = 0.2; pvPut(set_max, SYNC);
+			set_mid = 0.1; pvPut(set_mid, SYNC);
 			set_pause = PAUSED; pvPut(set_pause, SYNC);		
 			system_stable = 1; pvPut(system_stable, SYNC);
 			strcpy(set_error_message, " ==> I'm an error!"); pvPut(set_error_message, SYNC);
@@ -315,7 +316,7 @@ ss fsm {
 				after the ramp-to-zero is complete. */
 			if (((get_output < 0) && (final_target > 0)) || ((get_output > 0) && (final_target < 0)))  {
 				continue_ramp_after_zero_reached = 1;
-				set_ramp_target = ZERO; pvPut(set_ramp_target, SYNC);
+				set_ramp_target = TARGET_ZERO; pvPut(set_ramp_target, SYNC);
 				final_target = 0; pvPut(final_target, SYNC);
 			}
 			else {
@@ -337,7 +338,7 @@ ss fsm {
 			pvPut(ramp_table_targets, SYNC);			
 			system_stable = 0; pvPut(system_stable, SYNC);	
 			printf("\n==> ramp_active: ramping to next target: %f", (get_mid/10000));
-			strcpy(set_log_message, "RAMP STATUS: RAMPING FROM %f TO %f AT %f A/SEC", get_output*10000, get_mid, get_rate); pvPut(set_log_message, SYNC);
+			/*strcpy(set_log_message, "RAMP STATUS: RAMPING FROM %f TO %f AT %f A/SEC", get_output*10000, get_mid, get_rate); pvPut(set_log_message, SYNC);*/
 		}
 		
 		/* When the final target is reached, pause system and move to idle state */
@@ -420,10 +421,10 @@ ss fsm {
 		when ((fabs(get_output) < 0.0001) && (set_ramp_target == 1))  {
 			printf("\n==> continuing ramp");
 			set_ramp_target = TARGET_MID; pvPut(set_ramp_target, SYNC);
-			if(get_direction == POSITIVE) {
+			if(set_direction == POSITIVE) {
 				set_direction = NEGATIVE;
 			}
-			else if(get_direction == NEGATIVE) {
+			else if(set_direction == NEGATIVE) {
 				set_direction = POSITIVE;
 			}
 			pvPut(set_direction, SYNC);
