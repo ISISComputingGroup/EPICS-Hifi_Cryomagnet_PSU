@@ -309,35 +309,32 @@ ss fsm {
 		} state read_ramp_table_file
 
 		/* If system is unpaused, move to ramping state */
-		when((strcmp("OFF", get_pause)==0) && (set_ramp_target != TARGET_ZERO)) {		
+		when(strcmp("OFF", get_pause)==0) {		
 			/* If ramp will pass from + to - or - to +, flag our 'ramp to zero' trigger.
 				Target becomes 0 and user's final target is stored in a cache variable to be used 
 				after the ramp-to-zero is complete. */
 			if (((get_output < 0) && (final_target > 0)) || ((get_output > 0) && (final_target < 0)))  {
 				continue_ramp_after_zero_reached = 1;
-				set_ramp_target = ZERO; pvPut(set_ramp_target, SYNC);
+				ramp_zero_cache = final_target;
+				printf("\nramp zero cache at idle: %f", ramp_zero_cache);
+				/*set_ramp_target = TARGET_ZERO; pvPut(set_ramp_target, SYNC); */
 				final_target = 0; pvPut(final_target, SYNC);
 			}
 			else {
 				continue_ramp_after_zero_reached = 0;
 			}
 		} state set_ramp_values
-		
-		when((strcmp("OFF", get_pause)==0) && (set_ramp_target == TARGET_ZERO)) {
-			printf("\n ==> Ramping to ZERO");
-		} state ramp_to_zero
+
 	}
 
 	state ramp_active {
 		
-		entry {
-			
+		entry {			
 			read_ramp_table_rates();
 			pvPut(ramp_table_rates, SYNC);
 			pvPut(ramp_table_targets, SYNC);			
 			system_stable = 0; pvPut(system_stable, SYNC);	
-			printf("\n==> ramp_active: ramping to next target: %f", (get_mid/10000));
-			strcpy(set_log_message, "RAMP STATUS: RAMPING FROM %f TO %f AT %f A/SEC", get_output*10000, get_mid, get_rate); pvPut(set_log_message, SYNC);
+			printf("\n==> ramp_active: ramping to next target: %f", (get_mid*10000));			
 		}
 		
 		/* When the final target is reached, pause system and move to idle state */
@@ -350,7 +347,10 @@ ss fsm {
 			printf("\nRamp to ZERO complete, continuing to next target");
 			/* Continue to previous user-set target */
 			final_target = ramp_zero_cache;
+
+			printf("\n\n\nramp zero cache: %f", ramp_zero_cache);
 			continue_ramp_after_zero_reached = 0;
+			set_ramp_target = TARGET_MID; pvPut(set_ramp_target, SYNC);
 		} state set_ramp_values
 		
 		/* When the interim target is reached, search for next target */
@@ -370,14 +370,14 @@ ss fsm {
 			read_ramp_table_rates();
 			temp_target_table_index = find_nearest_ramp_rate(get_output);
 			
-			/* Set Direction based on current output and our target 
+			/* Set Direction based on current output and our target */
 			if ((get_output >= 0) && (final_target >= 0)) {	
 				set_direction = POSITIVE;
 			}
 			else if ((get_output <= 0) && (final_target < 0)) {
 				set_direction = NEGATIVE;
 			}					
-			*/
+			
 			set_mid = (ramp_table_targets[temp_target_table_index]/10000);						
 			set_ramp_rate = ramp_table_rates[temp_target_table_index];
 			
@@ -420,10 +420,10 @@ ss fsm {
 		when ((fabs(get_output) < 0.0001) && (set_ramp_target == 1))  {
 			printf("\n==> continuing ramp");
 			set_ramp_target = TARGET_MID; pvPut(set_ramp_target, SYNC);
-			if(get_direction == POSITIVE) {
+			if(set_direction == POSITIVE) {
 				set_direction = NEGATIVE;
 			}
-			else if(get_direction == NEGATIVE) {
+			else if(set_direction == NEGATIVE) {
 				set_direction = POSITIVE;
 			}
 			pvPut(set_direction, SYNC);
