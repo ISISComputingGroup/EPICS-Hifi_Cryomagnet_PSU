@@ -77,8 +77,7 @@ char delim[2] = " ";
 double sort_values[64][2];
 
 /* Interim Ramp Rate Check Variables */
-double difference_ramp_up;
-double difference_ramp_down;
+
 double check_difference;
 int temp_target_table_index = 0;
 
@@ -217,8 +216,6 @@ int TARGET_MAX = 2;
 		*/
 
 		int nearest_index = 0;
-		difference_ramp_down = DBL_MAX;
-		difference_ramp_up = DBL_MAX;	
 		largest_target_index = file_lines-1;
 		smallest_target_index = 0;
 		
@@ -260,7 +257,7 @@ ss fsm {
 			set_output_mode = 1; pvPut(set_output_mode, SYNC);
 			strcpy(ramp_table_directory, macValueGet("RAMPTABLEDIR"));
 			pvPut(ramp_table_directory, SYNC);		
-			set_heater_status = 0; pvPut(set_heater_status, SYNC);
+			set_heater_status = 1; pvPut(set_heater_status, SYNC);
 			set_limit = 5.0; pvPut(set_limit, SYNC);
 			set_constant = 0.00029; pvPut(set_constant, SYNC);
 			set_zero = 0.000; pvPut(set_zero, SYNC);
@@ -272,7 +269,8 @@ ss fsm {
 			}
 			pvPut(set_direction, SYNC);
 			set_ramp_target = TARGET_MID; pvPut(set_ramp_target, SYNC);
-			set_max = 0.3; pvPut(set_max, SYNC);			
+			set_max = 0.2; pvPut(set_max, SYNC);
+			set_mid = 0.1; pvPut(set_mid, SYNC);
 			set_pause = PAUSED; pvPut(set_pause, SYNC);		
 			system_stable = 1; pvPut(system_stable, SYNC);
 			strcpy(set_error_message, " ==> I'm an error!"); pvPut(set_error_message, SYNC);
@@ -318,6 +316,8 @@ ss fsm {
 				ramp_zero_cache = final_target;
 				printf("\nramp zero cache at idle: %f", ramp_zero_cache);
 				/*set_ramp_target = TARGET_ZERO; pvPut(set_ramp_target, SYNC); */
+
+				set_ramp_target = TARGET_ZERO; pvPut(set_ramp_target, SYNC);
 				final_target = 0; pvPut(final_target, SYNC);
 			}
 			else {
@@ -326,6 +326,66 @@ ss fsm {
 		} state set_ramp_values
 
 	}
+state set_ramp_values {
+		entry {
+			read_ramp_table_rates();
+			temp_target_table_index = find_nearest_ramp_rate(get_output);
+			
+			/* Set Direction based on current output and our target */
+			if ((get_output >= 0) && (final_target >= 0)) {	
+				set_direction = POSITIVE;
+			}
+			else if ((get_output <= 0) && (final_target < 0)) {
+				set_direction = NEGATIVE;
+			}					
+			
+			set_mid = (ramp_table_targets[temp_target_table_index]/10000);
+			/* If ramping down, ramp rate is the ceiling of the ramp table value (i.e. the 
+				next highest value)
+			*/
+			if (fabs(final_target) < fabs(get_output)) {
+				if(temp_target_table_index < file_lines) {
+					set_ramp_rate = ramp_table_rates[temp_target_table_index+1];
+				}
+			}
+			else {
+				set_ramp_rate = ramp_table_rates[temp_target_table_index];
+			}
+			
+			/* If target is in-between ramp table values, target = final target. */
+			if ((set_mid > fabs(final_target/10000)) && (final_target != 0)) {
+				set_mid = fabs(final_target/10000);
+			}	
+			
+			/* If we're beyond the ranges of the ramp table, set target to be user's Final target, and 
+			   rate to be the current used rate. */
+			if (temp_target_table_index > 99) {
+				set_mid = (final_target/10000);
+				set_ramp_rate = get_ramp_rate;
+				/* Ramping down? Rate is the lowest ramp rate value. */
+				if (fabs(final_target) < fabs(get_output)) {
+					set_ramp_rate = ramp_table_rates[0];
+				}
+			}
+			
+			/* Flip values depending on what our polarity is 
+			if (set_direction == NEGATIVE) {
+				set_mid *= -1.0;				
+			}
+			if (set_direction == POSITIVE) {
+				set_mid = fabs(set_mid);
+			}
+			*/
+			/* Set all these values */
+			pvPut(set_ramp_rate, SYNC);
+			pvPut(set_mid, SYNC);	
+			pvPut(set_direction, SYNC);		
+		}
+		
+		when (delay(1)) {
+			printf("\n\n==> Set values: Current Target: %f \t index: %i \t Rate: %f \t final_target: %f", get_mid*10000, temp_target_table_index, get_ramp_rate, final_target);
+		} state ramp_active
+	}	
 
 	state ramp_active {
 		
@@ -334,7 +394,10 @@ ss fsm {
 			pvPut(ramp_table_rates, SYNC);
 			pvPut(ramp_table_targets, SYNC);			
 			system_stable = 0; pvPut(system_stable, SYNC);	
-			printf("\n==> ramp_active: ramping to next target: %f", (get_mid*10000));			
+
+			printf("\n==> ramp_active: ramping to next target: %f", (get_mid*10000));
+			/*strcpy(set_log_message, "RAMP STATUS: RAMPING FROM %f TO %f AT %f A/SEC", get_output*10000, get_mid, get_rate); pvPut(set_log_message, SYNC);*/
+
 		}
 		
 		/* When the final target is reached, pause system and move to idle state */
@@ -365,52 +428,6 @@ ss fsm {
 
 	} 
 	
-	state set_ramp_values {
-		entry {
-			read_ramp_table_rates();
-			temp_target_table_index = find_nearest_ramp_rate(get_output);
-			
-			/* Set Direction based on current output and our target */
-			if ((get_output >= 0) && (final_target >= 0)) {	
-				set_direction = POSITIVE;
-			}
-			else if ((get_output <= 0) && (final_target < 0)) {
-				set_direction = NEGATIVE;
-			}					
-			
-			set_mid = (ramp_table_targets[temp_target_table_index]/10000);						
-			set_ramp_rate = ramp_table_rates[temp_target_table_index];
-			
-			/* If target is in-between ramp table values, target = final target. */
-			if ((set_mid > fabs(final_target/10000)) && (final_target != 0)) {
-				set_mid = fabs(final_target/10000);
-			}	
-			
-			/* If we're beyond the ranges of the ramp table, set target to be user's Final target, and 
-			   rate to be the current used rate. */
-			if (temp_target_table_index > 99) {
-				set_mid = (final_target/10000);
-				set_ramp_rate = get_ramp_rate;
-			}
-			
-			/* Flip values depending on what our polarity is 
-			if (set_direction == NEGATIVE) {
-				set_mid *= -1.0;				
-			}
-			if (set_direction == POSITIVE) {
-				set_mid = fabs(set_mid);
-			}
-			*/
-			/* Set all these values */
-			pvPut(set_ramp_rate, SYNC);
-			pvPut(set_mid, SYNC);	
-			pvPut(set_direction, SYNC);		
-		}
-		
-		when (delay(1)) {
-			printf("\n==> Set values: Current Target: %f \t Final Target: %f \t Rate: %f", get_mid*10000, final_target, get_ramp_rate);
-		} state ramp_active
-	}
 	
 	state ramp_to_zero {
 		entry {
