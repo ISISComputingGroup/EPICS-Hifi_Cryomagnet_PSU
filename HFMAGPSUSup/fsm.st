@@ -399,12 +399,6 @@ state set_ramp_values {
 			/*strcpy(set_log_message, "RAMP STATUS: RAMPING FROM %f TO %f AT %f A/SEC", get_output*10000, get_mid, get_rate); pvPut(set_log_message, SYNC);*/
 
 		}
-		
-		/* When the final target is reached, pause system and move to idle state */
-		when((fabs(final_target - (get_output*10000)) < 0.00001) && (continue_ramp_after_zero_reached == 0)) {
-			set_pause = PAUSED; pvPut(set_pause, SYNC);			
-		} state ramp_complete
-		
 		/* When we've finished ramping to zero */
 		when((fabs(final_target - (get_output*10000)) < 0.00001) && (continue_ramp_after_zero_reached == 1)) {
 			printf("\nRamp to ZERO complete, continuing to next target");
@@ -415,6 +409,13 @@ state set_ramp_values {
 			continue_ramp_after_zero_reached = 0;
 			set_ramp_target = TARGET_MID; pvPut(set_ramp_target, SYNC);
 		} state set_ramp_values
+		
+		/* When the final target is reached, pause system and move to idle state */
+		when((fabs(final_target - (get_output*10000)) < 0.00001) && (continue_ramp_after_zero_reached == 0)) {
+			set_pause = PAUSED; pvPut(set_pause, SYNC);			
+		} state ramp_complete
+		
+
 		
 		/* When the interim target is reached, search for next target */
 		when(fabs(get_output - get_mid) < 0.00001) {
