@@ -134,6 +134,7 @@ int TARGET_MAX = 2;
 			Reading ramp table values from external .txt file 
 			Puts file values into ramp_table_rates and ramp_table_targets 		
 		*/
+		
 		/* Empty our arrays for re-writing */
 		memset(ramp_table_targets, -1, sizeof(ramp_table_rates));
 		memset(ramp_table_rates, -1, sizeof(ramp_table_rates));
@@ -308,14 +309,12 @@ ss fsm {
 
 		/* If system is unpaused, move to ramping state */
 		when(strcmp("OFF", get_pause)==0) {		
-			/* If ramp will pass from + to - or - to +, flag our 'ramp to zero' trigger.
+			/* If ramp will pass through 0, flag our continue_ramp_after_zero trigger.
 				Target becomes 0 and user's final target is stored in a cache variable to be used 
 				after the ramp-to-zero is complete. */
 			if (((get_output < 0) && (final_target > 0)) || ((get_output > 0) && (final_target < 0)))  {
 				continue_ramp_after_zero_reached = 1;
-				ramp_zero_cache = final_target;
-				printf("\nramp zero cache at idle: %f", ramp_zero_cache);
-				/*set_ramp_target = TARGET_ZERO; pvPut(set_ramp_target, SYNC); */
+				ramp_zero_cache = final_target;			
 				final_target = 0; pvPut(final_target, SYNC);
 			}
 			else {
@@ -338,6 +337,7 @@ state set_ramp_values {
 			}					
 			
 			set_mid = (ramp_table_targets[temp_target_table_index]/10000);
+			
 			/* If ramping down, ramp rate is the ceiling of the ramp table value (i.e. the 
 				next highest value)
 			*/
@@ -356,7 +356,7 @@ state set_ramp_values {
 			}	
 			
 			/* If we're beyond the ranges of the ramp table, set target to be user's Final target, and 
-			   rate to be the current used rate. */
+			   rate to be the currently used rate. */
 			if (temp_target_table_index > 99) {
 				set_mid = (final_target/10000);
 				set_ramp_rate = get_ramp_rate;
@@ -365,23 +365,14 @@ state set_ramp_values {
 					set_ramp_rate = ramp_table_rates[0];
 				}
 			}
-			
-			/* Flip values depending on what our polarity is 
-			if (set_direction == NEGATIVE) {
-				set_mid *= -1.0;				
-			}
-			if (set_direction == POSITIVE) {
-				set_mid = fabs(set_mid);
-			}
-			*/
-			/* Set all these values */
+
 			pvPut(set_ramp_rate, SYNC);
 			pvPut(set_mid, SYNC);	
 			pvPut(set_direction, SYNC);		
 		}
 		
 		when (delay(1)) {
-			printf("\n\n==> Set values: Current Target: %f \t index: %i \t Rate: %f \t final_target: %f", get_mid*10000, temp_target_table_index, get_ramp_rate, final_target);
+			printf("\n==> Set values: Current Target: %f \t Rate: %f \t final_target: %f", get_mid*10000, get_ramp_rate, final_target);
 		} state ramp_active
 	}	
 
@@ -399,11 +390,9 @@ state set_ramp_values {
 		}
 		/* When we've finished ramping to zero */
 		when((fabs(final_target - (get_output*10000)) < 0.00001) && (continue_ramp_after_zero_reached == 1)) {
-			printf("\nRamp to ZERO complete, continuing to next target");
+			printf("\nRamp to zero complete, continuing to next target");
 			/* Continue to previous user-set target */
 			final_target = ramp_zero_cache;
-
-			printf("\n\n\nramp zero cache: %f", ramp_zero_cache);
 			continue_ramp_after_zero_reached = 0;
 			set_ramp_target = TARGET_MID; pvPut(set_ramp_target, SYNC);
 		} state set_ramp_values
@@ -413,44 +402,16 @@ state set_ramp_values {
 			set_pause = PAUSED; pvPut(set_pause, SYNC);			
 		} state ramp_complete
 		
-
-		
 		/* When the interim target is reached, search for next target */
-		when(fabs(fabs(get_output) - fabs(get_mid)) < 0.00001) {
-			printf("\nINTERIM");		
+		when(fabs(fabs(get_output) - fabs(get_mid)) < 0.00001) {	
 		} state set_ramp_values
 
-		/* If pause is on, stop ramping */
+		/* If pause is turned on, stop ramping */
 		when(strcmp("ON", get_pause)==0) {			
 			printf("\n==> Ramping paused! pause on\n");
 		} state idle
 
 	} 
-	
-	
-	state ramp_to_zero {
-		entry {
-			printf("\n==> IN RAMP ZERO STATE!!!");			
-		}
-		/* If we reach zero but still need to continue... */
-		when ((fabs(get_output) < 0.0001) && (set_ramp_target == 1))  {
-			printf("\n==> continuing ramp");
-			set_ramp_target = TARGET_MID; pvPut(set_ramp_target, SYNC);
-			if(set_direction == POSITIVE) {
-				set_direction = NEGATIVE;
-			}
-			else if(set_direction == NEGATIVE) {
-				set_direction = POSITIVE;
-			}
-			pvPut(set_direction, SYNC);
-		} state set_ramp_values
-		
-		when ((fabs(get_output) < 0.0001) && (set_ramp_target == 0)) {
-			/* Ramping to zero only: put pause back on */
-			set_pause = PAUSED; pvPut(set_pause, SYNC);
-		} state idle
-	}
-	
 	
 	state ramp_complete {
 		entry {
