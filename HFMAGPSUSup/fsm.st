@@ -316,8 +316,6 @@ ss fsm {
 				ramp_zero_cache = final_target;
 				printf("\nramp zero cache at idle: %f", ramp_zero_cache);
 				/*set_ramp_target = TARGET_ZERO; pvPut(set_ramp_target, SYNC); */
-
-				set_ramp_target = TARGET_ZERO; pvPut(set_ramp_target, SYNC);
 				final_target = 0; pvPut(final_target, SYNC);
 			}
 			else {
@@ -418,8 +416,8 @@ state set_ramp_values {
 
 		
 		/* When the interim target is reached, search for next target */
-		when(fabs(get_output - get_mid) < 0.00001) {
-			/*printf("\nramp_active ==> set_ramp_values");	*/		
+		when(fabs(fabs(get_output) - fabs(get_mid)) < 0.00001) {
+			printf("\nINTERIM");		
 		} state set_ramp_values
 
 		/* If pause is on, stop ramping */
