@@ -1,8 +1,8 @@
 OutTerminator = CR LF;
 InTerminator = DC3;
 ReplyTimeout = 500;
-WriteTimeout = 2000;
-ReadTimeout = 2000;
+WriteTimeout = 50;
+ReadTimeout = 1000;
 
 getDirection {
 	out "GET SIGN";
@@ -97,8 +97,8 @@ setConstant {
 }
 
 setMaxTarget {
-	out "SET MAX %f";
-	in "%(\$1)#s";
+	out "SET MAX %.5f";
+	in "%(\$1)75c";
 }
 
 getMaxTarget {
@@ -108,7 +108,7 @@ getMaxTarget {
 
 setMidTarget {
 	out "SET MID %f";
-	in "%(\$1)#s";
+	in "%(\$1)75c";
 }
 
 getMidTarget {
