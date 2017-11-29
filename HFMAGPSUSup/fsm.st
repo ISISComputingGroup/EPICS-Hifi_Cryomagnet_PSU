@@ -52,9 +52,11 @@ PV(int, write_ramp_file_trigger, "{P}:WRITEFILE", Monitor);
 PV(double, final_target, "{P}:MIDFINALTARGET", Monitor);
 
 char ramp_table_directory[256]; assign ramp_table_directory to "{P}:RAMPTABLEDIRECTORY";
+char temp_log[256];
 double ramp_table_rates[64]; assign ramp_table_rates to "{P}:RAMPTABLERATES"; monitor ramp_table_rates;
 double ramp_table_targets[64]; assign ramp_table_targets to "{P}:RAMPTABLETARGETS"; monitor ramp_table_targets;
 int system_stable; assign system_stable to "{P}:SYSTEMSTABLE";
+double ramp_time; assign ramp_time to "{P}:RAMPTIME"; monitor ramp_time;
 
 double set_max; assign set_max to "{P}:MAX:SP";
 double set_mid; assign set_mid to "{P}:MID:SP";
@@ -65,7 +67,7 @@ int set_direction; assign set_direction to "{P}:DIRECTION:SP";
 double set_constant; assign set_constant to "{P}:CONSTANT:SP";
 double set_ramp_rate; assign set_ramp_rate to "{P}:RAMPRATE:SP";
 int set_output_mode; assign set_output_mode to "{P}:OUTPUTMODE:SP";
-char set_error_message[256]; assign set_error_message to "{P}:ERRORMESSAGE";
+
 char set_log_message[256]; assign set_log_message to "{P}:LOGMESSAGE";
 int set_heater_status; assign set_heater_status to "{P}:HEATERSTATUS:SP";
 
@@ -88,6 +90,7 @@ float abs_target;
 
 int continue_ramp_after_zero_reached;
 double ramp_zero_cache;
+double interim_ramping_tolerance;
 
 /* direction setters */
 int POSITIVE = 2;
@@ -222,14 +225,14 @@ int TARGET_MAX = 2;
 		
 		for (int x = 0; x < file_lines; x++) {
 			/* Ramping up? Find next highest value */
-			if (fabs(final_target) > fabs(current_output)) {
+			if (fabs(final_target) > fabs(current_output)) {				
 				if(fabs(current_output) < (ramp_table_targets[x]/10000)) {
 					nearest_index = x;
 					break;
 				}			
 			}		
 			/* Ramping down? Find next lowest Value */
-			if (fabs(final_target) < fabs(current_output)) {
+			if (fabs(final_target) < fabs(current_output)) {				
 				if(fabs(current_output) > (ramp_table_targets[x]/10000)) {
 					nearest_index = x;
 				}
@@ -244,6 +247,50 @@ int TARGET_MAX = 2;
 		return nearest_index;
 	}
 
+	static double calc_ramp_duration() {
+		printf("\n\n***** Calculating ramp time *******");
+		double ramp_time = 0.0;
+		int interim;
+		int index = 0;
+		double current_position = get_output*10000;
+		/* ramping up? */
+
+		if (fabs(final_target) > fabs(current_position)) {
+			index = temp_target_table_index;
+			while(index < file_lines) {
+				if (fabs(final_target) < ramp_table_targets[index]) {
+					printf("\nramp time += %f - %f * %f", final_target, current_position, (ramp_table_rates[index]*get_constant*10000));
+					ramp_time += ((fabs(final_target) - current_position) * (ramp_table_rates[index]*get_constant*10000));
+					index = file_lines;
+				}
+				else {
+					ramp_time += ((ramp_table_targets[index] - current_position) * (ramp_table_rates[index]*get_constant*10000));
+					printf("\nramp time += %f - %f * %f", ramp_table_targets[index], current_position, (ramp_table_rates[index]*get_constant*10000));
+					printf("\nramp_time: %f \tconstant: %f", ramp_time, get_constant);
+					current_position = ramp_table_targets[index];
+					index += 1;
+				}
+			}
+			/* if final target is beyond ramp table values */
+			if(fabs(final_target) > ramp_table_targets[file_lines]) {
+				/* if current output is currently beyond table range */
+				if(current_position > ramp_table_targets[file_lines]) {
+					ramp_time += ((final_target - current_position) * (ramp_table_rates[index]*get_constant*10000));
+					printf("\nbeyond ramp time += %f - %f * %f", final_target, current_position, (ramp_table_rates[index]*get_constant*10000));
+					printf("\nramp_time: %f", ramp_time);
+				}
+				else {
+					ramp_time += (final_target - ramp_table_targets[file_lines] * (ramp_table_rates[file_lines]*get_constant*10000));
+					printf("\n+ full beyond ramp time += %f - %f * %f", final_target, current_position, (ramp_table_rates[index]*get_constant*10000));
+					printf("\nramp_time: %f", ramp_time);
+					
+				}
+				
+			}
+		}
+		printf("\nnew ramp time: ramp_time: %f", ramp_time);
+		return ramp_time;
+	}
 }%
 
 foreign ssId;
@@ -274,7 +321,7 @@ ss fsm {
 			set_mid = 0.1; pvPut(set_mid, SYNC);
 			set_pause = PAUSED; pvPut(set_pause, SYNC);		
 			system_stable = 1; pvPut(system_stable, SYNC);
-			strcpy(set_error_message, " ==> I'm an error!"); pvPut(set_error_message, SYNC);
+			
 			strcpy(set_log_message, " ==> I'm the initial log message!"); pvPut(set_log_message, SYNC);
 			write_ramp_file_trigger = 0; pvPut(write_ramp_file_trigger, SYNC);
 			read_ramp_file_trigger = 0; pvPut(write_ramp_file_trigger, SYNC);					
@@ -284,6 +331,8 @@ ss fsm {
 			set_ramp_rate = ramp_table_rates[0]; pvPut(set_ramp_rate, SYNC);
 			printf("==> Initial variable values set\n");	
 			continue_ramp_after_zero_reached = 0;
+			interim_ramping_tolerance = 0.5;
+			ramp_time = 0; pvPut(ramp_time, SYNC);
 			
 			/* Get the Current Direction (GS), read and parse the response, noting it in a global, also note the Direction in a local variable*/	    
 		}
@@ -364,27 +413,29 @@ state set_ramp_values {
 				if (fabs(final_target) < fabs(get_output)) {
 					set_ramp_rate = ramp_table_rates[0];
 				}
-			}
-
+			}	
+	
 			pvPut(set_ramp_rate, SYNC);
 			pvPut(set_mid, SYNC);	
 			pvPut(set_direction, SYNC);		
 		}
 		
 		when (delay(1)) {
-			printf("\n==> Set values: Current Target: %f \t Rate: %f \t final_target: %f", get_mid*10000, get_ramp_rate, final_target);
+			printf("\n==> Set values: Current Target: %.3f \t Rate: %.3f \t final_target: %.3f", get_mid*10000, get_ramp_rate, final_target);
+			read_ramp_table_rates();
+			pvPut(ramp_table_rates, SYNC);
+			pvPut(ramp_table_targets, SYNC);			
+			system_stable = 0; pvPut(system_stable, SYNC);
+			
+			printf("\n==> ramp_active: ramping to next target: %f", (get_mid*10000));
 		} state ramp_active
 	}	
 
 	state ramp_active {
 		
 		entry {			
-			read_ramp_table_rates();
-			pvPut(ramp_table_rates, SYNC);
-			pvPut(ramp_table_targets, SYNC);			
-			system_stable = 0; pvPut(system_stable, SYNC);	
-
-			printf("\n==> ramp_active: ramping to next target: %f", (get_mid*10000));
+			sprintf(temp_log, "RAMP STATUS: RAMPING FROM %.2f to %.2f GAUSS AT %.3f A/SEC", get_output*10000, get_mid*10000, get_ramp_rate);
+			strcpy(set_log_message, temp_log); pvPut(set_log_message, SYNC);
 			/*strcpy(set_log_message, "RAMP STATUS: RAMPING FROM %f TO %f AT %f A/SEC", get_output*10000, get_mid, get_rate); pvPut(set_log_message, SYNC);*/
 
 		}
@@ -399,7 +450,9 @@ state set_ramp_values {
 		
 		/* When the final target is reached, pause system and move to idle state */
 		when((fabs(final_target - (get_output*10000)) < 0.00001) && (continue_ramp_after_zero_reached == 0)) {
-			set_pause = PAUSED; pvPut(set_pause, SYNC);			
+			set_pause = PAUSED; pvPut(set_pause, SYNC);
+			sprintf(temp_log, "RAMP STATUS: HOLDING ON TARGET AT %.2f GAUSS", get_output*10000);
+			strcpy(set_log_message, temp_log); pvPut(set_log_message, SYNC);			
 		} state ramp_complete
 		
 		/* When the interim target is reached, search for next target */
@@ -410,12 +463,22 @@ state set_ramp_values {
 		when(strcmp("ON", get_pause)==0) {			
 			printf("\n==> Ramping paused! pause on\n");
 		} state idle
+		
+		when( delay(1) ) {
+			/* Update time to ramp */
+			/*
+			ramp_time = calc_ramp_duration() / 2;
+			pvPut(ramp_time, SYNC);
+			*/
+			
+		} state ramp_active
 
 	} 
 	
 	state ramp_complete {
 		entry {
-			printf("\n==> Ramp complete! Moving to idle state");			
+			printf("\n==> Ramp complete! Moving to idle state");	
+			ramp_time = 0; pvPut(ramp_time, SYNC);
 		}
 		when (delay(2)) {
 			system_stable = 1; pvPut(system_stable, SYNC);
