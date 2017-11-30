@@ -1,33 +1,36 @@
 OutTerminator = CR LF;
 InTerminator = DC3;
 ReplyTimeout = 500;
-WriteTimeout = 50;
+WriteTimeout = 500;
 ReadTimeout = 1000;
 
 getDirection {
 	out "GET SIGN";
-	in "CURRENT DIRECTION: %{ZERO|NEGATIVE|POSITIVE}%*2c";
+	in "CURRENT DIRECTION: %{ZERO|NEGATIVE|POSITIVE}\r\n";
 }
 
 setDirection {
+	wait 100;
 	out "D %{0|-|+}";
 	in "%(\$1)75c";
 }	
 	
 getOutputMode {
+	wait 100;
 	out "T";
-	in "%*8c UNITS: %{AMPS|TESLA}%*2c";
+	in "%*s UNITS: %{AMPS|TESLA}\r\n";
 }
 
 # tesla or amp units switch
 setOutputMode {
+	wait 100;
 	out "T %{OFF|ON}";
 	in "%(\$1)75c";
 }
 
 getOutput {
 	out "GET O";
-	in "OUTPUT:%f %*{AMPS|TESLA} AT %*f VOLTS%*3c";
+	in "OUTPUT:%f %*{AMPS|TESLA} AT %*f VOLTS \r\n";
 }
 
 getRampTarget {
@@ -43,7 +46,7 @@ setRampTarget {
 
 getRampRate {
 	out "GET RATE";
-	in "%*8c RAMP RATE: %f A/SEC%*2c";
+	in "%*s RAMP RATE: %f A/SEC\r\n";
 }
 
 # ramp rate, amps per second
@@ -54,7 +57,7 @@ setRampRate {
 	
 getHeaterStatus {
 	out "HEATER";
-	in "%*8c HEATER STATUS: %s%*2c";
+	in "%*s HEATER STATUS: %s\r\n";
 }
 
 # set heater on or off
@@ -65,7 +68,7 @@ setHeaterStatus {
 
 getHeaterValue {
 	out "GET H";
-	in "%*8c HEATER OUTPUT: %f VOLTS%*2c";
+	in "%*s HEATER OUTPUT: %f VOLTS\r\n";
 }
 
 # value, in volts
@@ -76,7 +79,7 @@ setHeaterValue {
 
 getLimit {
 	out "GET VL";
-	in "%*8c VOLTAGE LIMIT: %f VOLTS%*2c";
+	in "%*s VOLTAGE LIMIT: %f VOLTS\r\n";
 }
 
 # set voltage limit
@@ -87,7 +90,7 @@ setLimit {
 
 getConstant {
 	out "GET TPA";
-	in "%*8c FIELD CONSTANT: %f T/A%*2c";
+	in "%*s FIELD CONSTANT: %f T/A\r\n";
 }
 
 # set field constant
@@ -97,14 +100,13 @@ setConstant {
 }
 
 setMaxTarget {
-
 	out "SET MAX %f";
 	in "%(\$1)75c";
 }
 
 getMaxTarget {
 	out "GET MAX";
-	in "%*8c MAX SETTING: %f %*{AMPS|TESLA}%*2c";
+	in "%*s MAX SETTING: %f %*{AMPS|TESLA}\r\n";
 }
 
 setMidTarget {
@@ -114,12 +116,12 @@ setMidTarget {
 
 getMidTarget {
 	out "GET MID";
-	in "%*8c MID SETTING: %f %*{AMPS|TESLA}%*2c";
+	in "%*s MID SETTING: %f %*{AMPS|TESLA}\r\n";
 }
 	
 getPause {
 	out "P";
-	in "%*8c PAUSE STATUS: %{OFF|ON}%*2c";
+	in "%*s PAUSE STATUS: %{OFF|ON}\r\n";
 }	
 
 

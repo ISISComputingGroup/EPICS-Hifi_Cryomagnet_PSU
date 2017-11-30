@@ -97,7 +97,7 @@ setConstant {
 }
 
 setMaxTarget {
-	out "SET MAX %.5f";
+	out "SET MAX %f";
 	in "%(\$1)75c";
 }
 

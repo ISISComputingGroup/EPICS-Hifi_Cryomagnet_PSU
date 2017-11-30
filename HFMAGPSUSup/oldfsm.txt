@@ -387,7 +387,6 @@ ss fsm {
 		} state idle
 
 	}
-	
 state set_ramp_values {
 		entry {
 			read_ramp_table_rates();
@@ -477,7 +476,7 @@ state set_ramp_values {
 		
 		/* When the final target is reached, pause system and move to idle state */
 		when((fabs(final_target - (get_output*10000)) < 0.00001) && (continue_ramp_after_zero_reached == 0)) {
-			/*set_pause = PAUSED; pvPut(set_pause, SYNC);*/
+			set_pause = PAUSED; pvPut(set_pause, SYNC);
 			ramping_flag = 0; pvPut(ramping_flag, SYNC);
 			sprintf(temp_log, "RAMP STATUS: HOLDING ON TARGET AT %.2f GAUSS", get_output*10000);
 			strcpy(set_log_message, temp_log); pvPut(set_log_message, SYNC);			
