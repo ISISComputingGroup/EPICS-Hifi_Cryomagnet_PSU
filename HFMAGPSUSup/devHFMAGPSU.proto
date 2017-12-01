@@ -6,7 +6,7 @@ ReadTimeout = 1000;
 
 getDirection {
 	out "GET SIGN";
-	in "CURRENT DIRECTION: %{ZERO|NEGATIVE|POSITIVE} %*2c";
+	in "CURRENT DIRECTION: %{ZERO|NEGATIVE|POSITIVE}%*2c";
 }
 
 setDirection {
@@ -18,7 +18,7 @@ setDirection {
 getOutputMode {
 	wait 100;
 	out "T";
-	in "%*s UNITS: %{AMPS|TESLA} %*2c";
+	in "%*s UNITS: %{AMPS|TESLA}%*2c";
 }
 
 # tesla or amp units switch
@@ -46,7 +46,7 @@ setRampTarget {
 
 getRampRate {
 	out "GET RATE";
-	in "%*s RAMP RATE: %f A/SEC %*2c";
+	in "%*s RAMP RATE: %f A/SEC%*2c";
 }
 
 # ramp rate, amps per second
@@ -57,7 +57,7 @@ setRampRate {
 	
 getHeaterStatus {
 	out "HEATER";
-	in "%*s HEATER STATUS: %s %*2c";
+	in "%*s HEATER STATUS: %s%*2c";
 }
 
 # set heater on or off
@@ -68,7 +68,7 @@ setHeaterStatus {
 
 getHeaterValue {
 	out "GET H";
-	in "%*s HEATER OUTPUT: %f VOLTS %*2c";
+	in "%*s HEATER OUTPUT: %f VOLTS%*2c";
 }
 
 # value, in volts
@@ -79,7 +79,7 @@ setHeaterValue {
 
 getLimit {
 	out "GET VL";
-	in "%*s VOLTAGE LIMIT: %f VOLTS %*2c";
+	in "%*s VOLTAGE LIMIT: %f VOLTS%*2c";
 }
 
 # set voltage limit
@@ -90,7 +90,7 @@ setLimit {
 
 getConstant {
 	out "GET TPA";
-	in "%*s FIELD CONSTANT: %f T/A %*2c";
+	in "%*s FIELD CONSTANT: %f T/A%*2c";
 }
 
 # set field constant
@@ -106,7 +106,7 @@ setMaxTarget {
 
 getMaxTarget {
 	out "GET MAX";
-	in "%*s MAX SETTING: %f %*{AMPS|TESLA} %*2c";
+	in "%*s MAX SETTING: %f %*{AMPS|TESLA}%*2c";
 }
 
 setMidTarget {
@@ -116,12 +116,12 @@ setMidTarget {
 
 getMidTarget {
 	out "GET MID";
-	in "%*s MID SETTING: %f %*{AMPS|TESLA} %*2c";
+	in "%*s MID SETTING: %f %*{AMPS|TESLA}%*2c";
 }
 	
 getPause {
 	out "P";
-	in "%*s PAUSE STATUS: %{OFF|ON} %*2c";
+	in "%*s PAUSE STATUS: %{OFF|ON}%*2c";
 }	
 
 
