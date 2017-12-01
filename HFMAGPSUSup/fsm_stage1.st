@@ -1,5 +1,10 @@
 program fsm("P, RAMPTABLEDIR")
 
+
+/* STAGE 1: This FSM can do basic ramping from point A to point B: no incremental ramping, 
+no direction work. */
+
+
 /*
 **************************************************************************
 fsm.st

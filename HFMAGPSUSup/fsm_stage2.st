@@ -1,5 +1,8 @@
 program fsm("P, RAMPTABLEDIR")
 
+/* STAGE 2: This FSM can do incremntal ramp rates, and targets when ramping up. No direction work. */
+
+
 /*
 **************************************************************************
 fsm.st
