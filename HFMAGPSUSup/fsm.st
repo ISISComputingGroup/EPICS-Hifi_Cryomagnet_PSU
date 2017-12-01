@@ -53,7 +53,7 @@ PV(string, get_output_mode, "{P}:OUTPUTMODE", Monitor);
 PV(int, read_ramp_file_trigger, "{P}:READFILE", Monitor); 
 PV(string, get_heater_status, "{P}:HEATERSTATUS", Monitor);
 PV(int, write_ramp_file_trigger, "{P}:WRITEFILE", Monitor); 
-PV(double, final_target, "{P}:MIDFINALTARGET", Monitor);
+/*PV(double, get_mid, "{P}:MIDFINALTARGET", Monitor); */
 
 
 char ramp_table_directory[256]; assign ramp_table_directory to "{P}:RAMPTABLEDIRECTORY";
@@ -234,22 +234,22 @@ option +d;
 		
 		for (int x = 0; x < file_lines; x++) {
 			/* Ramping up? Find next highest value */
-			if (fabs(final_target) > fabs(current_output)) {				
+			if (fabs(get_mid) > fabs(current_output)) {				
 				if(fabs(current_output) < (ramp_table_targets[x]/10000)) {
 					nearest_index = x;
 					break;
 				}			
 			}		
 			/* Ramping down? Find next lowest Value */
-			if (fabs(final_target) < fabs(current_output)) {				
+			if (fabs(get_mid) < fabs(current_output)) {				
 				if(fabs(current_output) > (ramp_table_targets[x]/10000)) {
 					nearest_index = x;
 				}
 			}
 		}
 		/* If we have reached the last table value, and our final target is beyond that - */
-		if (((fabs(final_target) > (ramp_table_targets[file_lines-1]/10000)) && ( fabs(current_output) >= (ramp_table_targets[file_lines-1]/10000)) ) ||
-			( ( fabs(final_target) < (ramp_table_targets[0]/10000)) && (fabs(current_output) <= (ramp_table_targets[0]/10000))) ){
+		if (((fabs(get_mid) > (ramp_table_targets[file_lines-1]/10000)) && ( fabs(current_output) >= (ramp_table_targets[file_lines-1]/10000)) ) ||
+			( ( fabs(get_mid) < (ramp_table_targets[0]/10000)) && (fabs(current_output) <= (ramp_table_targets[0]/10000))) ){
 			/*printf("\n==> We're heading beyond the ranges of the ramp table!");*/
 			nearest_index = 100;
 		}
@@ -264,12 +264,12 @@ option +d;
 		double current_position = get_output*10000;
 		/* ramping up? */
 
-		if (fabs(final_target) > fabs(current_position)) {
+		if (fabs(get_mid) > fabs(current_position)) {
 			index = temp_target_table_index;
 			while(index < file_lines) {
-				if (fabs(final_target) < ramp_table_targets[index]) {
-					printf("\nramp time += %f - %f * %f", final_target, current_position, (ramp_table_rates[index]*get_constant*10000));
-					ramp_time += ((fabs(final_target) - current_position) * (ramp_table_rates[index]*get_constant*10000));
+				if (fabs(get_mid) < ramp_table_targets[index]) {
+					printf("\nramp time += %f - %f * %f", get_mid, current_position, (ramp_table_rates[index]*get_constant*10000));
+					ramp_time += ((fabs(get_mid) - current_position) * (ramp_table_rates[index]*get_constant*10000));
 					index = file_lines;
 				}
 				else {
@@ -281,16 +281,16 @@ option +d;
 				}
 			}
 			/* if final target is beyond ramp table values */
-			if(fabs(final_target) > ramp_table_targets[file_lines]) {
+			if(fabs(get_mid) > ramp_table_targets[file_lines]) {
 				/* if current output is currently beyond table range */
 				if(current_position > ramp_table_targets[file_lines]) {
-					ramp_time += ((final_target - current_position) * (ramp_table_rates[index]*get_constant*10000));
-					printf("\nbeyond ramp time += %f - %f * %f", final_target, current_position, (ramp_table_rates[index]*get_constant*10000));
+					ramp_time += ((get_mid - current_position) * (ramp_table_rates[index]*get_constant*10000));
+					printf("\nbeyond ramp time += %f - %f * %f", get_mid, current_position, (ramp_table_rates[index]*get_constant*10000));
 					printf("\nramp_time: %f", ramp_time);
 				}
 				else {
-					ramp_time += (final_target - ramp_table_targets[file_lines] * (ramp_table_rates[file_lines]*get_constant*10000));
-					printf("\n+ full beyond ramp time += %f - %f * %f", final_target, current_position, (ramp_table_rates[index]*get_constant*10000));
+					ramp_time += (get_mid - ramp_table_targets[file_lines] * (ramp_table_rates[file_lines]*get_constant*10000));
+					printf("\n+ full beyond ramp time += %f - %f * %f", get_mid, current_position, (ramp_table_rates[index]*get_constant*10000));
 					printf("\nramp_time: %f", ramp_time);
 					
 				}
@@ -345,11 +345,11 @@ ss fsm {
 	
 	state init3 {
 	entry {
-
+		
 		set_max = 0.4; pvPut(set_max, SYNC);
 		set_mid = 0.2; pvPut(set_mid, SYNC);
 	}
-	when (fabs(get_mid-0.4)<0.01) {
+	when (fabs(get_mid-0.2)<0.01) {
 		printf("\n==> PVs all set");
 	} state idle
 		
@@ -359,12 +359,15 @@ ss fsm {
 
 		entry {			
 			printf("\n==> idle: Waiting for system to be unpaused...");
-			
+			read_ramp_table_rates(); 
+			pvPut(ramp_table_rates, SYNC);
+			pvPut(ramp_table_targets, SYNC);
 			
 		}
 		
 		when(strcmp(get_pause, "OFF")==0) {
 			printf("\nMoving to ramping state");
+			
 		} state ramping_active
 		
 		when(write_ramp_file_trigger > 0) {
@@ -387,6 +390,37 @@ ss fsm {
 		when(strcmp(get_pause, "ON")==0) {
 			printf("\npaused!");
 		} state idle
+		
+		when (delay(2) ) {
+			printf("\nlooking for best ramp rate");
+			/* Set best ramp rate */
+			temp_target_table_index = find_nearest_ramp_rate(get_output);
+			printf("\n table index: %d", temp_target_table_index);
+			/* ramping down? ramp rate is the ceiling of the ramp table value (i.e. next highest value) */
+			if(fabs(get_mid) < fabs(get_output)) {
+				if(temp_target_table_index < file_lines) {
+					set_ramp_rate = ramp_table_rates[temp_target_table_index+1];
+				}
+			}
+			else {
+				set_ramp_rate = ramp_table_rates[temp_target_table_index];
+			}
+
+			
+			/* If we're beyond the ranges of the ramp table, set target to be user's Final target, and 
+			   rate to be the currently used rate. */
+			if (temp_target_table_index > 99) {
+				set_ramp_rate = get_ramp_rate;
+				/* Ramping down? Rate is the lowest ramp rate value. */
+				if (fabs(get_mid) < fabs(get_output)) {
+					set_ramp_rate = ramp_table_rates[0];
+				}
+			}	
+	
+			pvPut(set_ramp_rate, SYNC);
+			printf("ramp rate:  %f", set_ramp_rate);
+			
+		} state ramping_active
 	}
 	
 		state write_ramp_table_file {
