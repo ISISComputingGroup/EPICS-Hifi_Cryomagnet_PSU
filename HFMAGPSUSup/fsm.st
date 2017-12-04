@@ -322,7 +322,8 @@ ss fsm {
 			pvPut(ramp_table_targets, SYNC);	
 			set_ramp_rate = ramp_table_rates[0]; pvPut(set_ramp_rate, SYNC);
 			set_limit = 5.0; pvPut(set_limit, ASYNC);
-			set_constant = CONSTANT_INIT; pvPut(set_constant, ASYNC);
+			set_constant = 0.029; pvPut(set_constant, ASYNC);
+			
 			set_ramp_target = TARGET_MID; pvPut(set_ramp_target, SYNC);
 			
 			set_pause = PAUSED; pvPut(set_pause, SYNC);	
@@ -334,6 +335,11 @@ ss fsm {
 			printf("\n==> Constant set, setting outputmode, min, max\n");
 
 		} state init2
+		
+		when(delay(5)) {
+			printf("\nattempting to set PVs again...");
+			
+		} state init
 	}  
 	
 	state init2 {
@@ -405,14 +411,22 @@ ss fsm {
 			
 			/* ramping down? ramp rate is the ceiling of the ramp table value (i.e. next highest value) */
 			if(fabs(final_target) < fabs(get_output)) {
-				if(temp_target_table_index < file_lines) {
+				/* if we're in the ranges of the ramp table */
+				if(temp_target_table_index < (file_lines-1)) {
 					set_ramp_rate = ramp_table_rates[temp_target_table_index+1];
+					printf("\nramping DOWN at... %f, in table ranges", set_ramp_rate);
+				}
+				else {
+					set_ramp_rate = ramp_table_rates[file_lines-1];
+					printf("\nramping DOWN at HIGHEST TABLE VALUE... %f", set_ramp_rate);
 				}
 			}
 			else {
+				/* ramping up? ramp rate is matched to ramp target */
 				set_ramp_rate = ramp_table_rates[temp_target_table_index];
+				printf("\nramping UP at... %f at index: %d", set_ramp_rate, temp_target_table_index);
 			}
-			
+				
 			/* If target is in-between ramp table values, target = final target. */
 			if ((set_mid > fabs(final_target)) && (final_target != 0)) {
 				set_mid = fabs(final_target);
@@ -437,7 +451,7 @@ ss fsm {
 				set_mid /= get_constant;
 			}
 			
-			printf("\t ramp rate:  %f a/sec \t target: %f gauss", set_ramp_rate, set_mid*10000);
+			printf("\nramp rate:  %.3f a/sec \t target: %.3f gauss\tcurrentoutput: %.3f", set_ramp_rate, set_mid*10000, get_output*10000);
 			pvPut(set_ramp_rate, SYNC);
 			pvPut(set_mid, SYNC);
 			
