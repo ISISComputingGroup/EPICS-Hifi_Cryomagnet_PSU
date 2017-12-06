@@ -32,7 +32,8 @@ State Machine for the Hifi Cryomagnet PSU
 
 /* INITIALISER VARIABLES */
 
-double CONSTANT_INIT = 0.029;
+double CONSTANT_INIT = 0.028;
+double LIMIT_INIT = 5.0;
 
 #include "seqPVmacros.h"
 %{#include <stdlib.h>}%
@@ -315,34 +316,51 @@ ss fsm {
   
 		entry {
 			printf("\nhello world!");
+			set_output_mode = 0; pvPut(set_output_mode);
 			printf("\n==> Reading ramp table, setting limit, constant and target\n");
 			strcpy(ramp_table_directory, macValueGet("RAMPTABLEDIR"));
-			pvPut(ramp_table_directory, SYNC);	
+			pvPut(ramp_table_directory);	
 			read_ramp_table_rates(); 
-			pvPut(ramp_table_rates, SYNC);
-			pvPut(ramp_table_targets, SYNC);	
-			set_ramp_rate = ramp_table_rates[0]; pvPut(set_ramp_rate, SYNC);
-			set_limit = 5.0; pvPut(set_limit, ASYNC);
-			set_constant = CONSTANT_INIT; pvPut(set_constant, ASYNC);
-			set_ramp_target = TARGET_MID; pvPut(set_ramp_target, SYNC);
+			pvPut(ramp_table_rates);
+			pvPut(ramp_table_targets);	
+			set_ramp_rate = ramp_table_rates[0]; pvPut(set_ramp_rate);
+			printf("\nget_limit: %f", get_limit);
+			if(get_limit != LIMIT_INIT) {
+				printf("\nsetting limit");
+				set_limit = LIMIT_INIT; pvPut(set_limit);
+			}
+			printf("\nget_constant: %f", get_constant);
+			if(get_constant != CONSTANT_INIT) {
+				printf("\nsetting constant");
+				set_constant = CONSTANT_INIT; pvPut(set_constant);
+			}
+			if(strcmp(get_ramp_target, "MID")!=0) {
+				set_ramp_target = TARGET_MID; pvPut(set_ramp_target);
+			}
+			if(strcmp(get_pause, "OFF")==0) {
+				printf("\nsetting pause");
+				set_pause = PAUSED; pvPut(set_pause);	
+			}
 			
-			set_pause = PAUSED; pvPut(set_pause, SYNC);	
-			strcpy(set_log_message, " ==> I'm the initial log message!"); pvPut(set_log_message, SYNC);
-			
+			strcpy(set_log_message, " ==> I'm the initial log message!"); pvPut(set_log_message);
+			printf("\nsetting log message");
 		}
-
+		
 		when( fabs(get_constant-CONSTANT_INIT) < 0.01 ){	
 			printf("\n==> Constant set, setting outputmode, min, max\n");
 
 		} state init2
+		
 	}  
 	
 	state init2 {
 		entry {
-			set_output_mode = 1; pvPut(set_output_mode, SYNC);
-
+			if(strcmp(get_output_mode, "AMPS")==0) {
+				printf("\nsetting outputmode to TELSA");
+				set_output_mode = 1; pvPut(set_output_mode);
+			}
 		}
-		when (strcmp(get_output_mode, "TESLA")==0) {
+		when(strcmp(get_output_mode, "TESLA")==0) {
 			printf("\n==> Output mode set, setting mid and max values");
 		} state init3
 		
@@ -350,11 +368,16 @@ ss fsm {
 	
 	state init3 {
 	entry {
-
-		set_max = 0.4; pvPut(set_max, SYNC);
-		set_mid = 0.2; pvPut(set_mid, SYNC);
+		if(get_max != 0.4) {
+			set_max = 0.4; pvPut(set_max);
+			printf("\nsetting max");
+		}
+		if(get_mid != 0.2) {
+			set_mid = 0.2; pvPut(set_mid);
+			printf("\nsetting mid");
+		}
 	}
-	when (fabs(get_mid-0.4)<0.01) {
+	when (fabs(get_mid-0.2)<0.01) {
 		printf("\n==> PVs all set");
 	} state idle
 		
@@ -388,9 +411,9 @@ ss fsm {
 		entry {
 			printf("\nramping ramping ramping");
 		}	
-			/*strcpy(set_log_message, "RAMP STATUS: RAMPING FROM %f TO %f AT %f A/SEC", get_output*10000, get_mid, get_rate); pvPut(set_log_message, SYNC);*/
+			/*strcpy(set_log_message, "RAMP STATUS: RAMPING FROM %f TO %f AT %f A/SEC", get_output*10000, get_mid, get_rate); pvPut(set_log_message);*/
 		when(strcmp(get_pause, "ON")==0) {
-			printf("\npaused!");
+			printf("\npaused! MOVING TO PAUSED STATE");
 		} state idle
 	}
 	
@@ -398,7 +421,7 @@ ss fsm {
 		entry {
 			printf("\n==> Writing ramp table file to directory...");
 			write_ramp_table_to_file();
-			write_ramp_file_trigger = 0; pvPut(write_ramp_file_trigger, SYNC);
+			write_ramp_file_trigger = 0; pvPut(write_ramp_file_trigger);
 		}
 		when (delay(1)) {
 			
@@ -409,9 +432,9 @@ ss fsm {
 		entry {
 			printf("\n==> Reading ramp table file and setting PVs...");
 			read_ramp_table_rates();
-			pvPut(ramp_table_rates, SYNC);
-			pvPut(ramp_table_targets, SYNC);
-			read_ramp_file_trigger = 0; pvPut(read_ramp_file_trigger, SYNC);
+			pvPut(ramp_table_rates);
+			pvPut(ramp_table_targets);
+			read_ramp_file_trigger = 0; pvPut(read_ramp_file_trigger);
 		}
 		when (delay(1)) {
 			

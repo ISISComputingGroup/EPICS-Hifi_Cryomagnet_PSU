@@ -29,8 +29,8 @@ State Machine for the Hifi Cryomagnet PSU
 */
 
 /* INITIALISER VARIABLES */
-
-double CONSTANT_INIT = 0.029;
+double CONSTANT_INIT = 0.028;
+double LIMIT_INIT = 5.0;
 
 #include "seqPVmacros.h"
 %{#include <stdlib.h>}%
@@ -314,34 +314,51 @@ ss fsm {
   
 		entry {
 			printf("\nhello world!");
+			set_output_mode = 0; pvPut(set_output_mode);
 			printf("\n==> Reading ramp table, setting limit, constant and target\n");
 			strcpy(ramp_table_directory, macValueGet("RAMPTABLEDIR"));
-			pvPut(ramp_table_directory, SYNC);	
+			pvPut(ramp_table_directory);	
 			read_ramp_table_rates(); 
-			pvPut(ramp_table_rates, SYNC);
-			pvPut(ramp_table_targets, SYNC);	
-			set_ramp_rate = ramp_table_rates[0]; pvPut(set_ramp_rate, SYNC);
-			set_limit = 5.0; pvPut(set_limit, ASYNC);
-			set_constant = CONSTANT_INIT; pvPut(set_constant, ASYNC);
-			set_ramp_target = TARGET_MID; pvPut(set_ramp_target, SYNC);
+			pvPut(ramp_table_rates);
+			pvPut(ramp_table_targets);	
+			set_ramp_rate = ramp_table_rates[0]; pvPut(set_ramp_rate);
+			printf("\nget_limit: %f", get_limit);
+			if(get_limit != LIMIT_INIT) {
+				printf("\nsetting limit");
+				set_limit = LIMIT_INIT; pvPut(set_limit);
+			}
+			printf("\nget_constant: %f", get_constant);
+			if(get_constant != CONSTANT_INIT) {
+				printf("\nsetting constant");
+				set_constant = CONSTANT_INIT; pvPut(set_constant);
+			}
+			if(strcmp(get_ramp_target, "MID")!=0) {
+				set_ramp_target = TARGET_MID; pvPut(set_ramp_target);
+			}
+			if(strcmp(get_pause, "OFF")==0) {
+				printf("\nsetting pause");
+				set_pause = PAUSED; pvPut(set_pause);	
+			}
 			
-			set_pause = PAUSED; pvPut(set_pause, SYNC);	
-			strcpy(set_log_message, " ==> I'm the initial log message!"); pvPut(set_log_message, SYNC);
-			
+			strcpy(set_log_message, " ==> I'm the initial log message!"); pvPut(set_log_message);
+			printf("\nsetting log message");
 		}
-
+		
 		when( fabs(get_constant-CONSTANT_INIT) < 0.01 ){	
 			printf("\n==> Constant set, setting outputmode, min, max\n");
 
 		} state init2
+		
 	}  
 	
 	state init2 {
 		entry {
-			set_output_mode = 1; pvPut(set_output_mode, SYNC);
-
+			if(strcmp(get_output_mode, "AMPS")==0) {
+				printf("\nsetting outputmode to TELSA");
+				set_output_mode = 1; pvPut(set_output_mode);
+			}
 		}
-		when (strcmp(get_output_mode, "TESLA")==0) {
+		when(strcmp(get_output_mode, "TESLA")==0) {
 			printf("\n==> Output mode set, setting mid and max values");
 		} state init3
 		
@@ -349,9 +366,14 @@ ss fsm {
 	
 	state init3 {
 	entry {
-		
-		set_max = 0.4; pvPut(set_max, SYNC);
-		set_mid = 0.2; pvPut(set_mid, SYNC);
+		if(get_max != 0.4) {
+			set_max = 0.4; pvPut(set_max);
+			printf("\nsetting max");
+		}
+		if(get_mid != 0.2) {
+			set_mid = 0.2; pvPut(set_mid);
+			printf("\nsetting mid");
+		}
 	}
 	when (fabs(get_mid-0.2)<0.01) {
 		printf("\n==> PVs all set");
@@ -360,6 +382,7 @@ ss fsm {
 	}
 
 	state idle {
+
 
 		entry {			
 			printf("\n==> idle: Waiting for system to be unpaused...");
@@ -405,14 +428,22 @@ ss fsm {
 			
 			/* ramping down? ramp rate is the ceiling of the ramp table value (i.e. next highest value) */
 			if(fabs(final_target) < fabs(get_output)) {
-				if(temp_target_table_index < file_lines) {
+				/* if we're in the ranges of the ramp table */
+				if(temp_target_table_index < (file_lines-1)) {
 					set_ramp_rate = ramp_table_rates[temp_target_table_index+1];
+					printf("\nramping DOWN at... %f, in table ranges", set_ramp_rate);
+				}
+				else {
+					set_ramp_rate = ramp_table_rates[file_lines-1];
+					printf("\nramping DOWN at HIGHEST TABLE VALUE... %f", set_ramp_rate);
 				}
 			}
 			else {
+				/* ramping up? ramp rate is matched to ramp target */
 				set_ramp_rate = ramp_table_rates[temp_target_table_index];
+				printf("\nramping UP at... %f at index: %d", set_ramp_rate, temp_target_table_index);
 			}
-			
+				
 			/* If target is in-between ramp table values, target = final target. */
 			if ((set_mid > fabs(final_target)) && (final_target != 0)) {
 				set_mid = fabs(final_target);
@@ -437,7 +468,7 @@ ss fsm {
 				set_mid /= get_constant;
 			}
 			
-			printf("\t ramp rate:  %f a/sec \t target: %f gauss", set_ramp_rate, set_mid*10000);
+			printf("\nramp rate:  %.3f a/sec \t target: %.3f gauss\tcurrentoutput: %.3f", set_ramp_rate, set_mid*10000, get_output*10000);
 			pvPut(set_ramp_rate, SYNC);
 			pvPut(set_mid, SYNC);
 			
