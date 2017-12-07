@@ -46,8 +46,6 @@ option +d;
 /* PV definitions */
 PV(double, get_mid, "{P}:MID", Monitor);
 PV(double, get_max, "{P}:MAX", Monitor);
-PV(double, get_zero, "{P}:ZERO", Monitor);
-PV(double, set_zero, "{P}:ZERO", Monitor);
 PV(double, get_limit, "{P}:LIMIT", Monitor);
 PV(string, get_pause, "{P}:PAUSE", Monitor);
 PV(double, get_output, "{P}:OUTPUT", Monitor);
@@ -67,8 +65,6 @@ char temp_log[256];
 double ramp_table_rates[64]; assign ramp_table_rates to "{P}:RAMPTABLERATES"; monitor ramp_table_rates;
 double ramp_table_targets[64]; assign ramp_table_targets to "{P}:RAMPTABLETARGETS"; monitor ramp_table_targets;
 int system_stable; assign system_stable to "{P}:SYSTEMSTABLE";
-
-double ramp_time; assign ramp_time to "{P}:RAMPTIME"; monitor ramp_time;
 
 
 double set_max; assign set_max to "{P}:MAX:SP";
@@ -262,50 +258,7 @@ option +d;
 		return nearest_index;
 	}
 
-	static double calc_ramp_duration() {
-		printf("\n\n***** Calculating ramp time *******");
-		double ramp_time = 0.0;
-		int interim;
-		int index = 0;
-		double current_position = get_output*10000;
-		/* ramping up? */
-
-		if (fabs(final_target) > fabs(current_position)) {
-			index = temp_target_table_index;
-			while(index < file_lines) {
-				if (fabs(final_target) < ramp_table_targets[index]) {
-					printf("\nramp time += %f - %f * %f", final_target, current_position, (ramp_table_rates[index]*get_constant*10000));
-					ramp_time += ((fabs(final_target) - current_position) * (ramp_table_rates[index]*get_constant*10000));
-					index = file_lines;
-				}
-				else {
-					ramp_time += ((ramp_table_targets[index] - current_position) * (ramp_table_rates[index]*get_constant*10000));
-					printf("\nramp time += %f - %f * %f", ramp_table_targets[index], current_position, (ramp_table_rates[index]*get_constant*10000));
-					printf("\nramp_time: %f \tconstant: %f", ramp_time, get_constant);
-					current_position = ramp_table_targets[index];
-					index += 1;
-				}
-			}
-			/* if final target is beyond ramp table values */
-			if(fabs(final_target) > ramp_table_targets[file_lines]) {
-				/* if current output is currently beyond table range */
-				if(current_position > ramp_table_targets[file_lines]) {
-					ramp_time += ((final_target - current_position) * (ramp_table_rates[index]*get_constant*10000));
-					printf("\nbeyond ramp time += %f - %f * %f", final_target, current_position, (ramp_table_rates[index]*get_constant*10000));
-					printf("\nramp_time: %f", ramp_time);
-				}
-				else {
-					ramp_time += (final_target - ramp_table_targets[file_lines] * (ramp_table_rates[file_lines]*get_constant*10000));
-					printf("\n+ full beyond ramp time += %f - %f * %f", final_target, current_position, (ramp_table_rates[index]*get_constant*10000));
-					printf("\nramp_time: %f", ramp_time);
-					
-				}
-				
-			}
-		}
-		printf("\nnew ramp time: ramp_time: %f", ramp_time);
-		return ramp_time;
-	}
+	
 }%
 
 foreign ssId;
