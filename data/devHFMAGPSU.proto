@@ -3,12 +3,12 @@
 #InTerminator = DC3;
 ReplyTimeout = 1000;
 WriteTimeout = 500;
-ReadTimeout = 2000;
+ReadTimeout = 500;
 #ExtraInput = Ignore;
 #LockTimeout = 2000;
 
 getDirection {
-	out "     GET SIGN";
+	out "GET SIGN";
 	wait 50;
 	in "CURRENT DIRECTION: %{ZERO|NEGATIVE|POSITIVE}",CR,LF;
 	wait 100;
@@ -17,38 +17,38 @@ getDirection {
 
 setDirection {
 	
-	out "  D %{0|-|+}";
-	wait 50;
-	in "%*s",CR,LF;
+	out "D %{0|-|+}";
+	wait 150;
+	in "%*8c",CR,LF;
 	wait 100;
 }	
 	
 getOutputMode {
 	
-	out "  T";
+	out "T";
 	wait 50;
-	in "%*s UNITS: %{AMPS|TESLA}",CR,LF;
+	in "%*8c UNITS: %{AMPS|TESLA}",CR,LF;
 	wait 100;
 }
 
 # tesla or amp units switch
 setOutputMode {
 	
-	out "  T %{OFF|ON}";
-	wait 50;
+	out "T %{OFF|ON}";
+	wait 150;
 	in "%*8c UNITS: %*{TESLA|AMPS}",CR,LF;
 	wait 100;
 }
 
 getOutput {
-	out "  GET O";
+	out "GET O";
 	wait 50;
 	in "OUTPUT: %f %*{AMPS|TESLA} AT %*f VOLTS ",CR,LF;
 	wait 100;
 }
 
 getRampTarget {
-	out "  RAMP STATUS";
+	out "RAMP STATUS";
 	wait 50;
 	in "%#s",CR,LF;
 	wait 100;
@@ -57,126 +57,126 @@ getRampTarget {
 # ramp targets: zero, mid, max	
 setRampTarget {
 
-	out "  RAMP %{ZERO|MID|MAX}"; 
-	wait 50;
+	out "RAMP %{ZERO|MID|MAX}"; 
+	wait 150;
 	in "%*1c";
 	wait 100;
 }
 
 getRampRate {
-	out "  GET RATE";
+	out "GET RATE";
 	wait 50;
-	in "%*s RAMP RATE: %f A/SEC",CR,LF;
+	in "%*8c RAMP RATE: %f A/SEC",CR,LF;
 	wait 100;
 }
 
 # ramp rate, amps per second
 setRampRate {
-	out "  SET RAMP %f";
-	wait 50;
-	in "%*s RAMP RATE: %*f A/SEC",CR,LF;
+	out "SET RAMP %f";
+	wait 150;
+	in "%*8c RAMP RATE: %*f A/SEC",CR,LF;
 	wait 100;
 }
 	
 getHeaterStatus {
-	out "  HEATER";
+	out "HEATER";
 	wait 50;
-	in "%*s HEATER STATUS: %s",CR,LF;
+	in "%*8c HEATER STATUS: %s",CR,LF;
 	wait 100;
 }
 
 # set heater on or off
 setHeaterStatus {
-	out "  H %{OFF|ON}";
-	wait 50;
+	out "H %{OFF|ON}";
+	wait 150;
 	in "%*60c",CR,LF;
 	wait 100;
 }
 
 getHeaterValue {
-	out "  GET H";
+	out "GET H";
 	wait 50;
-	in "%*s HEATER OUTPUT: %f VOLTS",CR,LF;
+	in "%*8c HEATER OUTPUT: %f VOLTS",CR,LF;
 	wait 100;
 }
 
 # value, in volts
 setHeaterValue {
-	out "  S H %f";
-	wait 50;
+	out "S H %f";
+	wait 150;
 	in "%*8c HEATER OUTPUT@ %*f VOLTS",CR,LF;
 	wait 100;
 }
 
 getLimit {
-	out "  GET VL";
+	out "GET VL";
 	wait 50;
-	in "%*s VOLTAGE LIMIT: %f VOLTS",CR,LF;
+	in "%*8c VOLTAGE LIMIT: %f VOLTS",CR,LF;
 	wait 100;
 }
 
 # set voltage limit
 setLimit {
-	out "  S L %f";
-	wait 50;
+	out "S L %f";
+	wait 150;
 	in "%*8c VOLTAGE LIMIT: %*f VOLTS",CR,LF;
 	wait 100;
 }
 
 getConstant {
-	out "  GET TPA";
+	out "GET TPA";
 	wait 50;
-	in "%*s FIELD CONSTANT: %f T/A",CR,LF;
+	in "%*8c FIELD CONSTANT: %f T/A",CR,LF;
 	wait 100;
 }
 
 # set field constant
 setConstant {
-	out "  SET TPA %f";
-	wait 50;
+	out "SET TPA %f";
+	wait 150;
 	in "%*8c FIELD CONSTANT: %*f T/A",CR,LF;
 	wait 100;
 }
 
 setMaxTarget {
-	out "  SET MAX %f";
-	wait 50;
+	out "SET MAX %f";
+	wait 150;
 	in "%*8c MAX SETTING: %*f %*{AMPS|TESLA}",CR,LF;
 	wait 100;
 }
 
 getMaxTarget {
-	out "  GET MAX";
+	out "GET MAX";
 	wait 50;
-	in "%*s MAX SETTING: %f %*{AMPS|TESLA}",CR,LF;
+	in "%*8c MAX SETTING: %f %*{AMPS|TESLA}",CR,LF;
 	wait 100;
 }
 
 setMidTarget {
-	out "  SET MID %f";
-	wait 50;
+	out "SET MID %f";
+	wait 150;
 	in "%*8c MID SETTING: %*f %*{AMPS|TESLA}",CR,LF;
 	wait 100;
 }
 
 getMidTarget {
-	out "  GET MID";
+	out "GET MID";
 	wait 50;
-	in "%*s MID SETTING: %f %*{AMPS|TESLA}",CR,LF;
+	in "%*8c MID SETTING: %f %*{AMPS|TESLA}",CR,LF;
 	wait 100;
 }
 	
 getPause {
-	out "  P";
+	out "P";
 	wait 50;
-	in "%*s PAUSE STATUS: %{OFF|ON}",CR,LF;
+	in "%*8c PAUSE STATUS: %{OFF|ON}",CR,LF;
 	wait 100;
 }	
 
 
 setPause {
-	out "  P %{OFF|ON}";
-	wait 50;
+	out "P %{OFF|ON}";
+	wait 150;
 	in "%*8c PAUSE STATUS: %*{OFF|ON}",CR,LF;
 	wait 100;
 }

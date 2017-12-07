@@ -1,8 +1,8 @@
 program fsm("P, RAMPTABLEDIR")
 
+/* STAGE 2: This FSM can do incremntal ramp rates, and targets when ramping up. No direction work. */
 
-/* STAGE 1: This FSM can do basic ramping from point A to point B: no incremental ramping, 
-no direction work. */
+
 
 
 /*
@@ -277,21 +277,22 @@ ss fsm {
 			pvPut(ramp_table_rates);
 			pvPut(ramp_table_targets);	
 			set_ramp_rate = ramp_table_rates[0]; pvPut(set_ramp_rate);
-			printf("\nget_limit: %f", get_limit);
+			
 			if(get_limit != LIMIT_INIT) {
-				printf("\nsetting limit");
+				printf("\nsetting limit to 5v");
 				set_limit = LIMIT_INIT; pvPut(set_limit);
 			}
 			printf("\nget_constant: %f", get_constant);
 			if(get_constant != CONSTANT_INIT) {
-				printf("\nsetting constant");
+				printf("\nsetting constant to 0.029");
 				set_constant = CONSTANT_INIT; pvPut(set_constant);
 			}
 			if(strcmp(get_ramp_target, "MID")!=0) {
+				printf("\nsetting constant to Mid");
 				set_ramp_target = TARGET_MID; pvPut(set_ramp_target);
 			}
 			if(strcmp(get_pause, "OFF")==0) {
-				printf("\nsetting pause");
+				printf("\nsetting pause to on");
 				set_pause = PAUSED; pvPut(set_pause);	
 			}
 			
@@ -305,8 +306,11 @@ ss fsm {
 		} state init2
 		
 		when( delay(5) ) {
-			printf("\ntrying to set constant again...");
+			printf("\ntrying to set values again...");
 			set_constant = CONSTANT_INIT; pvPut(set_constant);
+			set_pause = PAUSED; pvPut(set_pause);	
+			set_ramp_target = TARGET_MID; pvPut(set_ramp_target);
+			set_limit = LIMIT_INIT; pvPut(set_limit);
 		}state init
 		
 	}  
@@ -319,7 +323,7 @@ ss fsm {
 			}
 		}
 		when(strcmp(get_output_mode, "TESLA")==0) {
-			printf("\n==> Output mode set, setting mid and max values");
+			printf("\n==> Output mode set, setting max values");
 		} state init3
 		
 		when( delay(5) ) {
@@ -338,7 +342,7 @@ ss fsm {
 
 		}
 		when (fabs(get_max-0.4)<0.01) {
-			printf("\n==? max setting, moving to setting mid");
+			printf("\n==> max setting, moving to setting mid");
 		} state init4
 		
 		when( delay(5) ) {
@@ -358,7 +362,7 @@ ss fsm {
 		}
 		
 		when (fabs(get_mid-0.2)<0.01) {
-			printf("\n==? mid setting, moving to setting mid");
+			printf("\n==> mid setting, moving to setting mid");
 		} state idle
 		
 		when( delay(5) ) {
@@ -370,14 +374,18 @@ ss fsm {
 
 	state idle {
 
+
 		entry {			
 			printf("\n==> idle: Waiting for system to be unpaused...");
-			
+			read_ramp_table_rates(); 
+			pvPut(ramp_table_rates, SYNC);
+			pvPut(ramp_table_targets, SYNC);
 			
 		}
 		
 		when(strcmp(get_pause, "OFF")==0) {
 			printf("\nMoving to ramping state");
+			
 		} state ramping_active
 		
 		when(write_ramp_file_trigger > 0) {
@@ -396,17 +404,73 @@ ss fsm {
 		entry {
 			printf("\nramping ramping ramping");
 		}	
-			/*strcpy(set_log_message, "RAMP STATUS: RAMPING FROM %f TO %f AT %f A/SEC", get_output*10000, get_mid, get_rate); pvPut(set_log_message);*/
+			/*strcpy(set_log_message, "RAMP STATUS: RAMPING FROM %f TO %f AT %f A/SEC", get_output*10000, get_mid, get_rate); pvPut(set_log_message, SYNC);*/
 		when(strcmp(get_pause, "ON")==0) {
-			printf("\npaused! MOVING TO PAUSED STATE");
+			printf("\npaused!");
 		} state idle
+		
+		when (delay(0.5) ) {
+			
+			/* Set best ramp rate and target */
+			temp_target_table_index = find_nearest_ramp_rate(get_output);
+			printf("\n table index: %d ", temp_target_table_index);	
+			
+			set_mid = (ramp_table_targets[temp_target_table_index]/10000);
+			
+			/* ramping down? ramp rate is the ceiling of the ramp table value (i.e. next highest value) */
+			if(fabs(final_target) < fabs(get_output)) {
+				/* if we're in the ranges of the ramp table */
+				if(temp_target_table_index < (file_lines-1)) {
+					set_ramp_rate = ramp_table_rates[temp_target_table_index+1];
+					printf("\nramping DOWN at... %f, in table ranges", set_ramp_rate);
+				}
+				else {
+					set_ramp_rate = ramp_table_rates[file_lines-1];
+					printf("\nramping DOWN at HIGHEST TABLE VALUE... %f", set_ramp_rate);
+				}
+			}
+			else {
+				/* ramping up? ramp rate is matched to ramp target */
+				set_ramp_rate = ramp_table_rates[temp_target_table_index];
+				printf("\nramping UP at... %f at index: %d", set_ramp_rate, temp_target_table_index);
+			}
+				
+			/* If target is in-between ramp table values, target = final target. */
+			if ((set_mid > fabs(final_target)) && (final_target != 0)) {
+				set_mid = fabs(final_target);
+			}	
+
+			
+			/* If we're beyond the ranges of the ramp table, set target to be user's Final target, and 
+			   rate to be the currently used rate. */
+			if (temp_target_table_index > 99) {
+				set_mid = (final_target);
+				set_ramp_rate = get_ramp_rate;
+				/* Ramping down? Rate is the lowest ramp rate value. */
+				if (fabs(final_target) < fabs(get_output)) {
+					set_ramp_rate = ramp_table_rates[0];
+				}
+			}	
+	
+
+			/* tesla/amp conversion */
+			if(strcmp(get_output_mode, "AMPS")==0) {
+				printf("\ndividing for amps conversion");
+				set_mid /= get_constant;
+			}
+			
+			printf("\nramp rate:  %.3f a/sec \t target: %.3f gauss\tcurrentoutput: %.3f", set_ramp_rate, set_mid*10000, get_output*10000);
+			pvPut(set_ramp_rate, SYNC);
+			pvPut(set_mid, SYNC);
+			
+		} state ramping_active
 	}
 	
 		state write_ramp_table_file {
 		entry {
 			printf("\n==> Writing ramp table file to directory...");
 			write_ramp_table_to_file();
-			write_ramp_file_trigger = 0; pvPut(write_ramp_file_trigger);
+			write_ramp_file_trigger = 0; pvPut(write_ramp_file_trigger, SYNC);
 		}
 		when (delay(1)) {
 			
@@ -417,9 +481,9 @@ ss fsm {
 		entry {
 			printf("\n==> Reading ramp table file and setting PVs...");
 			read_ramp_table_rates();
-			pvPut(ramp_table_rates);
-			pvPut(ramp_table_targets);
-			read_ramp_file_trigger = 0; pvPut(read_ramp_file_trigger);
+			pvPut(ramp_table_rates, SYNC);
+			pvPut(ramp_table_targets, SYNC);
+			read_ramp_file_trigger = 0; pvPut(read_ramp_file_trigger, SYNC);
 		}
 		when (delay(1)) {
 			

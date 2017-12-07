@@ -3,6 +3,8 @@ program fsm("P, RAMPTABLEDIR")
 /* STAGE 2: This FSM can do incremntal ramp rates, and targets when ramping up. No direction work. */
 
 
+
+
 /*
 **************************************************************************
 fsm.st
@@ -29,6 +31,7 @@ State Machine for the Hifi Cryomagnet PSU
 */
 
 /* INITIALISER VARIABLES */
+
 double CONSTANT_INIT = 0.028;
 double LIMIT_INIT = 5.0;
 
@@ -43,8 +46,6 @@ option +d;
 /* PV definitions */
 PV(double, get_mid, "{P}:MID", Monitor);
 PV(double, get_max, "{P}:MAX", Monitor);
-PV(double, get_zero, "{P}:ZERO", Monitor);
-PV(double, set_zero, "{P}:ZERO", Monitor);
 PV(double, get_limit, "{P}:LIMIT", Monitor);
 PV(string, get_pause, "{P}:PAUSE", Monitor);
 PV(double, get_output, "{P}:OUTPUT", Monitor);
@@ -56,7 +57,7 @@ PV(string, get_output_mode, "{P}:OUTPUTMODE", Monitor);
 PV(int, read_ramp_file_trigger, "{P}:READFILE", Monitor); 
 PV(string, get_heater_status, "{P}:HEATERSTATUS", Monitor);
 PV(int, write_ramp_file_trigger, "{P}:WRITEFILE", Monitor); 
-PV(double, final_target, "{P}:MIDFINALTARGET", Monitor); 
+PV(double, final_target, "{P}:MIDFINALTARGET", Monitor);
 
 
 char ramp_table_directory[256]; assign ramp_table_directory to "{P}:RAMPTABLEDIRECTORY";
@@ -64,8 +65,6 @@ char temp_log[256];
 double ramp_table_rates[64]; assign ramp_table_rates to "{P}:RAMPTABLERATES"; monitor ramp_table_rates;
 double ramp_table_targets[64]; assign ramp_table_targets to "{P}:RAMPTABLETARGETS"; monitor ramp_table_targets;
 int system_stable; assign system_stable to "{P}:SYSTEMSTABLE";
-
-double ramp_time; assign ramp_time to "{P}:RAMPTIME"; monitor ramp_time;
 
 
 double set_max; assign set_max to "{P}:MAX:SP";
@@ -239,7 +238,6 @@ option +d;
 			/* Ramping up? Find next highest value */
 			if (fabs(final_target) > fabs(current_output)) {				
 				if(fabs(current_output) < (ramp_table_targets[x]/10000)) {
-					
 					nearest_index = x;
 					break;
 				}			
@@ -260,50 +258,7 @@ option +d;
 		return nearest_index;
 	}
 
-	static double calc_ramp_duration() {
-		printf("\n\n***** Calculating ramp time *******");
-		double ramp_time = 0.0;
-		int interim;
-		int index = 0;
-		double current_position = get_output*10000;
-		/* ramping up? */
-
-		if (fabs(get_mid) > fabs(current_position)) {
-			index = temp_target_table_index;
-			while(index < file_lines) {
-				if (fabs(get_mid) < ramp_table_targets[index]) {
-					printf("\nramp time += %f - %f * %f", get_mid, current_position, (ramp_table_rates[index]*get_constant*10000));
-					ramp_time += ((fabs(get_mid) - current_position) * (ramp_table_rates[index]*get_constant*10000));
-					index = file_lines;
-				}
-				else {
-					ramp_time += ((ramp_table_targets[index] - current_position) * (ramp_table_rates[index]*get_constant*10000));
-					printf("\nramp time += %f - %f * %f", ramp_table_targets[index], current_position, (ramp_table_rates[index]*get_constant*10000));
-					printf("\nramp_time: %f \tconstant: %f", ramp_time, get_constant);
-					current_position = ramp_table_targets[index];
-					index += 1;
-				}
-			}
-			/* if final target is beyond ramp table values */
-			if(fabs(get_mid) > ramp_table_targets[file_lines]) {
-				/* if current output is currently beyond table range */
-				if(current_position > ramp_table_targets[file_lines]) {
-					ramp_time += ((get_mid - current_position) * (ramp_table_rates[index]*get_constant*10000));
-					printf("\nbeyond ramp time += %f - %f * %f", get_mid, current_position, (ramp_table_rates[index]*get_constant*10000));
-					printf("\nramp_time: %f", ramp_time);
-				}
-				else {
-					ramp_time += (get_mid - ramp_table_targets[file_lines] * (ramp_table_rates[file_lines]*get_constant*10000));
-					printf("\n+ full beyond ramp time += %f - %f * %f", get_mid, current_position, (ramp_table_rates[index]*get_constant*10000));
-					printf("\nramp_time: %f", ramp_time);
-					
-				}
-				
-			}
-		}
-		printf("\nnew ramp time: ramp_time: %f", ramp_time);
-		return ramp_time;
-	}
+	
 }%
 
 foreign ssId;
@@ -349,6 +304,11 @@ ss fsm {
 
 		} state init2
 		
+		when( delay(5) ) {
+			printf("\ntrying to set constant again...");
+			set_constant = CONSTANT_INIT; pvPut(set_constant);
+		}state init
+		
 	}  
 	
 	state init2 {
@@ -362,23 +322,50 @@ ss fsm {
 			printf("\n==> Output mode set, setting mid and max values");
 		} state init3
 		
+		when( delay(5) ) {
+			printf("\ntrying to set output mode again...");
+			set_output_mode = 1; pvPut(set_output_mode);
+		}state init2
+		
 	}
 	
 	state init3 {
-	entry {
-		if(get_max != 0.4) {
-			set_max = 0.4; pvPut(set_max);
-			printf("\nsetting max");
+		entry {
+			if(get_max != 0.4) {
+				set_max = 0.4; pvPut(set_max);
+				printf("\nsetting max");
+			}
+
 		}
-		if(get_mid != 0.2) {
-			set_mid = 0.2; pvPut(set_mid);
-			printf("\nsetting mid");
-		}
-	}
-	when (fabs(get_mid-0.2)<0.01) {
-		printf("\n==> PVs all set");
-	} state idle
+		when (fabs(get_max-0.4)<0.01) {
+			printf("\n==> max setting, moving to setting mid");
+		} state init4
 		
+		when( delay(5) ) {
+			printf("\ntrying to set max again...");
+			set_max = 0.4; pvPut(set_max);
+			
+		}state init3
+		
+	}
+	
+	state init4 {
+		entry {
+			if(get_mid != 0.2) {
+				set_mid = 0.2; pvPut(set_mid);
+				printf("\nsetting mid");
+			}
+		}
+		
+		when (fabs(get_mid-0.2)<0.01) {
+			printf("\n==? mid setting, moving to setting mid");
+		} state idle
+		
+		when( delay(5) ) {
+			printf("\ntrying to set mid again...");
+			
+			set_mid = 0.2; pvPut(set_mid);
+		}state init4
 	}
 
 	state idle {
