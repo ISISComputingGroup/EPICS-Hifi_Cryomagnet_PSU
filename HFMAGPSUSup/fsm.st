@@ -236,15 +236,16 @@ option +d;
 		
 		for (int x = 0; x < file_lines; x++) {
 			/* Ramping up? Find next highest value */
+			/* 10/10000 is 10 gauss tolerance */
 			if (fabs(final_target) > fabs(current_output)) {				
-				if(fabs(current_output) < (ramp_table_targets[x]/10000)) {
+				if(((fabs(current_output)+(10/10000)) < (ramp_table_targets[x]/10000)) {
 					nearest_index = x;
 					break;
 				}			
 			}		
 			/* Ramping down? Find next lowest Value */
 			if (fabs(final_target) < fabs(current_output)) {				
-				if(fabs(current_output) > (ramp_table_targets[x]/10000)) {
+				if((fabs(current_output)-(10/10000)) > (ramp_table_targets[x]/10000)) {
 					nearest_index = x;
 				}
 			}
@@ -342,7 +343,7 @@ ss fsm {
 
 		}
 		when (fabs(get_max-0.4)<0.01) {
-			printf("\n==> max setting, moving to setting mid");
+			printf("\n==> max sett, moving to setting mid");
 		} state init4
 		
 		when( delay(5) ) {
@@ -362,7 +363,7 @@ ss fsm {
 		}
 		
 		when (fabs(get_mid-0.2)<0.01) {
-			printf("\n==> mid setting, moving to setting mid");
+			printf("\n==> mid set, moving to setting mid");
 		} state idle
 		
 		when( delay(5) ) {
@@ -409,11 +410,11 @@ ss fsm {
 			printf("\npaused!");
 		} state idle
 		
-		when (delay(0.5) ) {
+		when (delay(1) ) {
 			
 			/* Set best ramp rate and target */
 			temp_target_table_index = find_nearest_ramp_rate(get_output);
-			printf("\n table index: %d ", temp_target_table_index);	
+			/* printf("\n table index: %d ", temp_target_table_index);	*/
 			
 			set_mid = (ramp_table_targets[temp_target_table_index]/10000);
 			
@@ -422,29 +423,29 @@ ss fsm {
 				/* if we're in the ranges of the ramp table */
 				if(temp_target_table_index < (file_lines-1)) {
 					set_ramp_rate = ramp_table_rates[temp_target_table_index+1];
-					printf("\nramping DOWN at... %f, in table ranges", set_ramp_rate);
+					/*printf("\nramping DOWN at... %f, in table ranges", set_ramp_rate);*/
 				}
 				else {
 					set_ramp_rate = ramp_table_rates[file_lines-1];
-					printf("\nramping DOWN at HIGHEST TABLE VALUE... %f", set_ramp_rate);
+					/*printf("\nramping DOWN at HIGHEST TABLE VALUE... %f", set_ramp_rate);*/
 				}
 			}
 			else {
 				/* ramping up? ramp rate is matched to ramp target */
 				set_ramp_rate = ramp_table_rates[temp_target_table_index];
-				printf("\nramping UP at... %f at index: %d", set_ramp_rate, temp_target_table_index);
+				/*printf("\nramping UP at... %f at index: %d", set_ramp_rate, temp_target_table_index); */
 			}
 				
 			/* If target is in-between ramp table values, target = final target. */
 			if ((set_mid > fabs(final_target)) && (final_target != 0)) {
-				set_mid = fabs(final_target);
+				set_mid = final_target;
 			}	
 
 			
 			/* If we're beyond the ranges of the ramp table, set target to be user's Final target, and 
 			   rate to be the currently used rate. */
 			if (temp_target_table_index > 99) {
-				set_mid = (final_target);
+				set_mid = final_target;
 				set_ramp_rate = get_ramp_rate;
 				/* Ramping down? Rate is the lowest ramp rate value. */
 				if (fabs(final_target) < fabs(get_output)) {
@@ -459,7 +460,7 @@ ss fsm {
 				set_mid /= get_constant;
 			}
 			
-			printf("\nramp rate:  %.3f a/sec \t target: %.3f gauss\tcurrentoutput: %.3f", set_ramp_rate, set_mid*10000, get_output*10000);
+			printf("\ntarget: %.3f gauss\trate: %.3f a/sec\tcurrentoutput: %.3f\tfinal target: %f", set_mid*10000, set_ramp_rate, get_output*10000, final_target*10000);
 			pvPut(set_ramp_rate, SYNC);
 			pvPut(set_mid, SYNC);
 			
