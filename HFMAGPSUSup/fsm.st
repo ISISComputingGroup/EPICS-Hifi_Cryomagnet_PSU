@@ -1,9 +1,18 @@
 program fsm("P, RAMPTABLEDIR")
 
-/* STAGE 2: This FSM can do incremntal ramp rates, and targets when ramping up. No direction work. */
+/* STAGE 3: Starting polarity experimentation. Seems to be working!
 
+Issues: Incremental ramping: tolerance, or something, needs tweaking as a ramp up from 0 - 150 jitters around the ramp table transition points (here, 100)
 
+target: 100.000 gauss   rate: 0.020 a/sec       current output: 98.000 gauss    final target: 150.000000
+target: 100.000 gauss   rate: 0.020 a/sec       current output: 98.000 gauss    final target: 150.000000
+target: 150.000 gauss   rate: 0.030 a/sec       current output: 100.000 gauss   final target: 150.000000
+target: 100.000 gauss   rate: 0.020 a/sec       current output: 97.000 gauss    final target: 150.000000
+target: 150.000 gauss   rate: 0.030 a/sec       current output: 146.000 gauss   final target: 150.000000 
 
+Sometimes values aren't set properly on startup and IOC needs to be restarted
+
+/ took out sorting, so values must be written in order. Could add: in OPI, 'add row' button insert rows at selected row ('remove' does the same)
 
 /*
 **************************************************************************
@@ -120,29 +129,7 @@ option +d;
 		Escaped C Code - this section contains functions called within states.
 	*/
 	
-	static void sort_column(double arr[][2], int file_lines) {
-		/* 
-			Function to sort ramp file values into order by target value 
-			This is so we can more easily find the next appropriate ramp target.
-		*/
-		int i,j,k;
-		double key;
-		for(i=0;i<file_lines;i++)
-		{
-			for(j=1;j<file_lines;j++)
-			{
-				key=arr[j][i];
-				k=j-1;
-				while(k>=0 && arr[k][i]>key)
-				{
-					arr[k+1][i]=arr[k][i];
-					k--;
-				}
-				arr[k+1][i]=key;
-			}
-		}
-	}
-		
+
 	static void read_ramp_table_rates() {	
 		/* 
 			Reading ramp table values from external .txt file 
@@ -164,9 +151,9 @@ option +d;
 			
 			while (fgets(buffer, 30, ramp_file) != NULL) {			
 				token = strtok(buffer, delim);
-				sort_values[file_lines][0] = strtod(token, NULL);			
+				ramp_table_targets[file_lines] = strtod(token, NULL);			
 				token = strtok(NULL, delim);
-				sort_values[file_lines][1] = strtod(token, NULL);
+				ramp_table_rates[file_lines] = strtod(token, NULL);
 				file_lines++;			
 			}	
 		}	
@@ -175,13 +162,6 @@ option +d;
 			exit(-1);
 		}
 		fclose(ramp_file);	
-		
-		/* Sort ramp file values into ascending order of target, and put into our PV values*/
-		for (int i = 0; i < file_lines;i++) {
-			sort_column(sort_values, file_lines);
-			ramp_table_targets[i] = sort_values[i][0];
-			ramp_table_rates[i] = sort_values[i][1];
-		}	
 	}
 
 	static void write_ramp_table_to_file() {	
@@ -236,16 +216,16 @@ option +d;
 		
 		for (int x = 0; x < file_lines; x++) {
 			/* Ramping up? Find next highest value */
-			/* 10/10000 is 10 gauss tolerance */
+			/* 5/10000 is 5 gauss tolerance */
 			if (fabs(final_target) > fabs(current_output)) {				
-				if(((fabs(current_output)+(10/10000)) < (ramp_table_targets[x]/10000)) {
+				if((fabs(current_output)+(5/10000)) < (ramp_table_targets[x]/10000)) {
 					nearest_index = x;
 					break;
 				}			
 			}		
 			/* Ramping down? Find next lowest Value */
 			if (fabs(final_target) < fabs(current_output)) {				
-				if((fabs(current_output)-(10/10000)) > (ramp_table_targets[x]/10000)) {
+				if((fabs(current_output)-(5/10000)) > (ramp_table_targets[x]/10000)) {
 					nearest_index = x;
 				}
 			}
@@ -295,6 +275,14 @@ ss fsm {
 			if(strcmp(get_pause, "OFF")==0) {
 				printf("\nsetting pause to on");
 				set_pause = PAUSED; pvPut(set_pause);	
+			}
+			if(get_output < 0) {
+				printf("\nSetting direction to NEGATIVE");
+				set_direction = NEGATIVE; pvPut(set_direction);
+			}
+			if(get_output >= 0) {
+				printf("\nsetting direction to POSITIVE");
+				set_direction = POSITIVE; pvPut(set_direction);
 			}
 			
 			strcpy(set_log_message, " ==> I'm the initial log message!"); pvPut(set_log_message);
@@ -403,7 +391,15 @@ ss fsm {
 	state ramping_active {
 		
 		entry {
-			printf("\nramping ramping ramping");
+			printf("\nFinal target: %f", final_target*10000);
+			if((final_target > 0) && (get_output < 0) ) {
+				printf("\nsetting direction to positive!");
+				set_direction = POSITIVE; pvPut(set_direction);
+			}
+			if((final_target < 0) && (get_output > 0) ) {
+				printf("\nsetting direction to negative!");
+				set_direction = NEGATIVE; pvPut(set_direction);
+			}
 		}	
 			/*strcpy(set_log_message, "RAMP STATUS: RAMPING FROM %f TO %f AT %f A/SEC", get_output*10000, get_mid, get_rate); pvPut(set_log_message, SYNC);*/
 		when(strcmp(get_pause, "ON")==0) {
@@ -460,7 +456,7 @@ ss fsm {
 				set_mid /= get_constant;
 			}
 			
-			printf("\ntarget: %.3f gauss\trate: %.3f a/sec\tcurrentoutput: %.3f\tfinal target: %f", set_mid*10000, set_ramp_rate, get_output*10000, final_target*10000);
+			printf("\ntarget: %.3f gauss\trate: %.3f a/sec\tcurrent output: %.3f gauss\tfinal target: %f", set_mid*10000, set_ramp_rate, get_output*10000, final_target*10000);
 			pvPut(set_ramp_rate, SYNC);
 			pvPut(set_mid, SYNC);
 			
