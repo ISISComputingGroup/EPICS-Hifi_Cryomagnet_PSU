@@ -59,7 +59,7 @@ setRampTarget {
 
 	out "RAMP %{ZERO|MID|MAX}"; 
 	wait 50;
-	in "%*1c";
+	in "%*1c"; 
 	wait 100;
 }
 

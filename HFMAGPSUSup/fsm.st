@@ -75,7 +75,6 @@ double ramp_table_rates[64]; assign ramp_table_rates to "{P}:RAMPTABLERATES"; mo
 double ramp_table_targets[64]; assign ramp_table_targets to "{P}:RAMPTABLETARGETS"; monitor ramp_table_targets;
 int system_stable; assign system_stable to "{P}:SYSTEMSTABLE";
 
-
 double set_max; assign set_max to "{P}:MAX:SP";
 double set_mid; assign set_mid to "{P}:MID:SP";
 int set_pause; assign set_pause to "{P}:PAUSE:SP";
@@ -363,7 +362,6 @@ ss fsm {
 
 	state idle {
 
-
 		entry {			
 			printf("\n==> idle: Waiting for system to be unpaused...");
 			read_ramp_table_rates(); 
@@ -383,6 +381,7 @@ ss fsm {
 		
 		when(read_ramp_file_trigger > 0) {
 			printf("\nMoving to read_file state!");
+			
 		} state read_ramp_table_file
 
 			
@@ -452,11 +451,11 @@ ss fsm {
 
 			/* tesla/amp conversion */
 			if(strcmp(get_output_mode, "AMPS")==0) {
-				printf("\ndividing for amps conversion");
+				/* printf("\ndividing for amps conversion"); */
 				set_mid /= get_constant;
 			}
 			
-			printf("\ntarget: %.3f gauss\trate: %.3f a/sec\tcurrent output: %.3f gauss\tfinal target: %f", set_mid*10000, set_ramp_rate, get_output*10000, final_target*10000);
+			printf("\ntarget: %.3f gauss\trate: %.3f a/sec output: %.3f gauss final target: %f : %s dir: %s", set_mid*10000, set_ramp_rate, get_output*10000, final_target*10000, get_ramp_target, get_direction);
 			pvPut(set_ramp_rate, SYNC);
 			pvPut(set_mid, SYNC);
 			
