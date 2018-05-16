@@ -120,6 +120,10 @@ int TARGET_ZERO = 0;
 int TARGET_MID = 1;
 int TARGET_MAX = 2;
 
+int T = 0;
+int F = 1;
+int ramping_up = 0;
+
 /* Turn on run-time debug messages */
 option +d;
 
@@ -216,14 +220,16 @@ option +d;
 		for (int x = 0; x < file_lines; x++) {
 			/* Ramping up? Find next highest value */
 			/* 5/10000 is 5 gauss tolerance */
-			if (fabs(final_target) > fabs(current_output)) {				
+			/*if (fabs(final_target) > fabs(current_output)) {	*/
+			if ((final_target - get_output) >= 0) {			
 				if((fabs(current_output)+(5/10000)) < (ramp_table_targets[x]/10000)) {
 					nearest_index = x;
 					break;
 				}			
 			}		
 			/* Ramping down? Find next lowest Value */
-			if (fabs(final_target) < fabs(current_output)) {				
+			// if (fabs(final_target) < fabs(current_output)) {		
+			if (((final_target - get_output) < 0) || (current_output >= 0)) {
 				if((fabs(current_output)-(5/10000)) > (ramp_table_targets[x]/10000)) {
 					nearest_index = x;
 				}
@@ -232,8 +238,12 @@ option +d;
 		/* If we have reached the last table value, and our final target is beyond that - */
 		if (((fabs(final_target) > (ramp_table_targets[file_lines-1]/10000)) && ( fabs(current_output) >= (ramp_table_targets[file_lines-1]/10000)) ) ||
 			( ( fabs(final_target) < (ramp_table_targets[0]/10000)) && (fabs(current_output) <= (ramp_table_targets[0]/10000))) ){
-			/*printf("\n==> We're heading beyond the ranges of the ramp table!");*/
+			printf("\n==> We're heading beyond the ranges of the ramp table!");
 			nearest_index = 100;
+		}
+		if ((current_output <= ramp_table_targets[0]/10000) && (final_target < 0) && (current_output != 0)) {
+			nearest_index = 100;
+			printf("\nramping to zero!");
 		}
 		return nearest_index;
 	}
@@ -390,15 +400,26 @@ ss fsm {
 	state ramping_active {
 		
 		entry {
+			/*
 			printf("\nFinal target: %f", final_target*10000);
-			if((final_target > 0) && (get_output < 0) ) {
+			if((final_target > 0) && (get_output <= 0) ) {
 				printf("\nsetting direction to positive!");
 				set_direction = POSITIVE; pvPut(set_direction);
 			}
-			if((final_target < 0) && (get_output > 0) ) {
+			if((final_target < 0) && (get_output >= 0) ) {
 				printf("\nsetting direction to negative!");
 				set_direction = NEGATIVE; pvPut(set_direction);
 			}
+			*/
+			if (final_target > get_output) {
+				ramping_up = T;
+				printf("\nRamping UP");
+			}
+			else {
+				ramping_up = F;
+				printf("\nRamping DOWN");
+			}
+			
 		}	
 			/*strcpy(set_log_message, "RAMP STATUS: RAMPING FROM %f TO %f AT %f A/SEC", get_output*10000, get_mid, get_rate); pvPut(set_log_message, SYNC);*/
 		when(strcmp(get_pause, "ON")==0) {
@@ -414,6 +435,7 @@ ss fsm {
 			set_mid = (ramp_table_targets[temp_target_table_index]/10000);
 			
 			/* ramping down? ramp rate is the ceiling of the ramp table value (i.e. next highest value) */
+			/* if(fabs(final_target) < fabs(get_output)) { */
 			if(fabs(final_target) < fabs(get_output)) {
 				/* if we're in the ranges of the ramp table */
 				if(temp_target_table_index < (file_lines-1)) {
@@ -440,8 +462,22 @@ ss fsm {
 			/* If we're beyond the ranges of the ramp table, set target to be user's Final target, and 
 			   rate to be the currently used rate. */
 			if (temp_target_table_index > 99) {
+				
 				set_mid = final_target;
 				set_ramp_rate = get_ramp_rate;
+				
+				if ((get_output < 0 ) && (final_target >= 0)) {
+					printf("\nSetting direction to POSITIVE");
+					set_mid = 0;
+					set_direction = POSITIVE; pvPut(set_direction);
+				}
+				if 	((get_output >= 0) && (final_target < 0)) {
+					printf("\nSetting direction to NEGATIVE");
+					set_mid = 0;
+					set_direction = NEGATIVE; pvPut(set_direction);
+				}
+				
+				
 				/* Ramping down? Rate is the lowest ramp rate value. */
 				if (fabs(final_target) < fabs(get_output)) {
 					set_ramp_rate = ramp_table_rates[0];
@@ -455,7 +491,14 @@ ss fsm {
 				set_mid /= get_constant;
 			}
 			
-			printf("\ntarget: %.3f gauss\trate: %.3f a/sec output: %.3f gauss final target: %f : %s dir: %s", set_mid*10000, set_ramp_rate, get_output*10000, final_target*10000, get_ramp_target, get_direction);
+			/* Set correct polarity of mid target */
+			if(get_output < 0) {
+				set_mid *= -1;
+			}
+			
+	
+			
+			printf("\ntarget: %.3f gauss\trate: %.3f\t output: %.3fg \t final target: %f\t dir: %s", set_mid*10000, set_ramp_rate, get_output*10000, final_target*10000, get_direction);
 			pvPut(set_ramp_rate, SYNC);
 			pvPut(set_mid, SYNC);
 			
