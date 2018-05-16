@@ -4,7 +4,7 @@
 ReplyTimeout = 1000;
 WriteTimeout = 500;
 ReadTimeout = 500;
-#ExtraInput = Ignore;
+ExtraInput = Ignore;
 #LockTimeout = 2000;
 
 getDirection {
@@ -19,8 +19,7 @@ setDirection {
 	
 	out "D %{0|-|+}";
 	wait 50;
-	in "%*8c",CR,LF;
-	wait 100;
+	in "";
 }	
 	
 getOutputMode {
@@ -181,6 +180,3 @@ setPause {
 	wait 100;
 }
 	
-
-
-
