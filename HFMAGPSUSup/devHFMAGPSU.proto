@@ -44,7 +44,7 @@ getRampTarget {
 	in "%#s",CR,LF;
 	wait 100;
 }
-		
+
 setRampTarget {
 	out "RAMP %{ZERO|MID|MAX}"; 
 	wait 50;
