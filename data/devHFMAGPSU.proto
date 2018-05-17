@@ -1,39 +1,30 @@
 # Terminators set from st-common.cmd
-#OutTerminator = CR LF;
-#InTerminator = DC3;
 ReplyTimeout = 1000;
 WriteTimeout = 500;
 ReadTimeout = 500;
-#ExtraInput = Ignore;
-#LockTimeout = 2000;
+ExtraInput = Ignore;
 
 getDirection {
 	out "GET SIGN";
 	wait 50;
 	in "CURRENT DIRECTION: %{ZERO|NEGATIVE|POSITIVE}",CR,LF;
 	wait 100;
-	
 }
 
 setDirection {
-	
 	out "D %{0|-|+}";
 	wait 50;
-	in "%*8c",CR,LF;
-	wait 100;
+	in "";
 }	
 	
 getOutputMode {
-	
 	out "T";
 	wait 50;
 	in "%*8c UNITS: %{AMPS|TESLA}",CR,LF;
 	wait 100;
 }
 
-# tesla or amp units switch
 setOutputMode {
-	
 	out "T %{OFF|ON}";
 	wait 50;
 	in "%*8c UNITS: %*{TESLA|AMPS}",CR,LF;
@@ -54,9 +45,7 @@ getRampTarget {
 	wait 100;
 }
 		
-# ramp targets: zero, mid, max	
 setRampTarget {
-
 	out "RAMP %{ZERO|MID|MAX}"; 
 	wait 50;
 	in "%*1c"; 
@@ -70,7 +59,6 @@ getRampRate {
 	wait 100;
 }
 
-# ramp rate, amps per second
 setRampRate {
 	out "SET RAMP %f";
 	wait 50;
@@ -85,7 +73,6 @@ getHeaterStatus {
 	wait 100;
 }
 
-# set heater on or off
 setHeaterStatus {
 	out "H %{OFF|ON}";
 	wait 50;
@@ -100,7 +87,6 @@ getHeaterValue {
 	wait 100;
 }
 
-# value, in volts
 setHeaterValue {
 	out "S H %f";
 	wait 50;
@@ -115,7 +101,6 @@ getLimit {
 	wait 100;
 }
 
-# set voltage limit
 setLimit {
 	out "S L %f";
 	wait 50;
@@ -130,7 +115,6 @@ getConstant {
 	wait 100;
 }
 
-# set field constant
 setConstant {
 	out "SET TPA %f";
 	wait 50;
@@ -173,7 +157,6 @@ getPause {
 	wait 100;
 }	
 
-
 setPause {
 	out "P %{OFF|ON}";
 	wait 50;
@@ -181,6 +164,3 @@ setPause {
 	wait 100;
 }
 	
-
-
-
