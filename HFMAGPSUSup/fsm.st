@@ -61,7 +61,6 @@ char ramp_table_directory[256]; assign ramp_table_directory to "{P}:RAMPTABLEDIR
 char temp_log[256];
 double ramp_rates[64]; assign ramp_rates to "{P}:RAMPTABLERATES"; monitor ramp_rates;
 double ramp_targets[64]; assign ramp_targets to "{P}:RAMPTABLETARGETS"; monitor ramp_targets;
-int system_stable; assign system_stable to "{P}:SYSTEMSTABLE";
 
 double set_max; assign set_max to "{P}:MAX:SP";
 double set_mid; assign set_mid to "{P}:MID:SP";
@@ -239,7 +238,7 @@ ss fsm {
 			pvPut(ramp_rates);
 			pvPut(ramp_targets);	
 			set_ramp_rate = ramp_rates[0]; pvPut(set_ramp_rate);
-			strcpy(set_log_message, "==> Initialising Keithley 2700 Values"); pvPut(set_log_message);
+			strcpy(set_log_message, "==> Initialising SMS Power Supply Values"); pvPut(set_log_message);
 			
 			if(get_limit != LIMIT_INIT) {
 				printf("\n=> Setting limit to 5v");
@@ -422,7 +421,7 @@ ss fsm {
 			
 			pvPut(set_ramp_rate, SYNC);
 			pvPut(set_mid, SYNC);
-			snprintf(log_message, sizeof(log_message), "RAMP STATUS: RAMPING FROM %0.3f TO %0.3f AT %0.3f A/SEC", gauss_value(get_output), gauss_value(set_mid), get_ramp_rate);
+			snprintf(log_message, sizeof(log_message), "RAMP STATUS: RAMPING FROM %0.3f TO %0.3f AT %0.3f A/SEC", gauss_value(get_output), gauss_value(final_target), get_ramp_rate);
 			strcpy(set_log_message, log_message); pvPut(set_log_message);
 			
 		} state ramping_active

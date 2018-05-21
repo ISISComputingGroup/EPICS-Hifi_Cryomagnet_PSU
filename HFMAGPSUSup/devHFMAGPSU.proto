@@ -90,7 +90,7 @@ getHeaterValue {
 setHeaterValue {
 	out "S H %f";
 	wait 50;
-	in "%*8c HEATER OUTPUT@ %*f VOLTS",CR,LF;
+	in "%*8c HEATER OUTPUT: %*f VOLTS",CR,LF;
 	wait 100;
 }
 
